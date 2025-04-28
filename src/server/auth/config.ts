@@ -81,9 +81,16 @@ export const authConfig = {
             }),
           });
 
-          const tokensOrError = await response.json();
+          const tokensOrError = await response.json() as {
+            access_token: string;
+            expires_in: number;
+            refresh_token?: string;
+          } | { error: string };
 
-          if (!response.ok) throw tokensOrError;
+          if (!response.ok) {
+            const error = "error" in tokensOrError ? tokensOrError.error : "Failed to refresh token";
+            throw new Error(error);
+          }
 
           const newTokens = tokensOrError as {
             access_token: string;

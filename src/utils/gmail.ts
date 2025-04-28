@@ -1,34 +1,28 @@
-import { gmail_v1 } from "googleapis";
-import { useQuery } from "@tanstack/react-query";
+import type { gmail_v1 } from "googleapis";
 import { api } from "~/trpc/react";
 
 export function useGmailMessages(label?: string) {
   const labelIds = label ? [label] : undefined;
 
-  return useQuery({
-    queryKey: ["gmail", "messages", label],
-    queryFn: async () => {
-      const response = await api.gmail.listMessages.query({
-        labelIds,
-        maxResults: 20,
-      });
-
-      if (!response.messages) {
-        return [];
-      }
-
-      const messageDetails = await Promise.all(
-        response.messages.map(async (msg: { id: string }) => {
-          const detail = await api.gmail.getMessage.query({
-            messageId: msg.id,
-            format: "full",
-          });
-          return detail;
-        }),
-      );
-
-      return messageDetails as gmail_v1.Schema$Message[];
-    },
-    enabled: !!label,
+  const { data: listResponse } = api.gmail.listMessages.useQuery({
+    labelIds,
+    maxResults: 20,
   });
+
+  const messages = listResponse?.messages ?? [];
+
+  const messageDetails = messages.map((msg) => {
+    const { data } = api.gmail.getMessage.useQuery({
+      messageId: msg.id,
+      format: "full",
+    });
+    return data;
+  });
+
+  return {
+    data: messageDetails.filter(
+      (msg): msg is gmail_v1.Schema$Message => msg !== undefined,
+    ),
+    isLoading: false,
+  };
 }
