@@ -1,7 +1,9 @@
 "use client";
 
 import Image from "next/image";
+import { signOut, useSession } from "next-auth/react";
 import type { Section } from "../wrapper/dashboardWrapper";
+import { useState } from "react";
 
 interface SidebarProps {
   isCollapsed: boolean;
@@ -11,11 +13,40 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ isCollapsed, setCollapsed, activeTab, setSection }: SidebarProps) {
+  const { data: session } = useSession();
+  const [isHovered, setIsHovered] = useState(false);
+
+  if (!session?.user) return null;
+
+  const { name, email, image } = session.user;
+  const avatarContent = image ? (
+    <Image
+      src={image}
+      alt="Profile"
+      width={24}
+      height={24}
+      className="rounded-full object-cover"
+      referrerPolicy="no-referrer"
+    />
+  ) : (
+    <div className="w-6 h-6 rounded-full bg-blue-500 flex items-center justify-center text-white font-medium">
+      {name?.charAt(0).toUpperCase() ?? '?'}
+    </div>
+  );
+
   return (
     <aside
       className={`h-screen shadow-lg border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-black border-b flex flex-col transition-all duration-300 ease-in-out ${
-        isCollapsed ? "w-14" : "w-64"
+        isCollapsed ? "w-14" : "w-56"
       }`}
+      onMouseEnter={() => {
+        setIsHovered(true);
+        setCollapsed(false);
+      }}
+      onMouseLeave={() => {
+        setIsHovered(false);
+        setCollapsed(true);
+      }}
     >
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
@@ -87,6 +118,31 @@ export default function Sidebar({ isCollapsed, setCollapsed, activeTab, setSecti
             <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" stroke="#5C5E63" strokeWidth="1.1" />
           </svg>
           {!isCollapsed && <span className="text-sm">Sent</span>}
+        </button>
+      </div>
+
+      {/* User Profile Section */}
+      <div className="mt-auto border-t border-gray-200 dark:border-gray-700">
+        {/* Profile */}
+        <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-2'} p-3`}>
+          {avatarContent}
+          {!isCollapsed && (
+            <div className="flex flex-col">
+              <span className="text-sm font-medium">{name}</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">{email}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Sign Out Button */}
+        <button
+          onClick={() => signOut()}
+          className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-2'} w-full p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded`}
+        >
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24">
+            <path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" stroke="#5C5E63" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          {!isCollapsed && <span className="text-sm">Sign out</span>}
         </button>
       </div>
     </aside>

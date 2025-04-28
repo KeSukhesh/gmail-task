@@ -15,7 +15,7 @@ export default function DashboardShell() {
       {/* Sidebar */}
       <div
           className={`colors-border-default border-r h-screen overflow-visible relative shadow-md transition-all duration-300 ${
-          collapsed ? "w-14" : "w-64"
+          collapsed ? "w-14" : "w-56"
           }`}
       >
           <Sidebar
