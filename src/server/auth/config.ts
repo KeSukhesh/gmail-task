@@ -51,7 +51,7 @@ export const authConfig = {
     }),
   ],
   adapter: PrismaAdapter(db),
-  session: { strategy: "database" },
+  session: { strategy: "database" as const },
   callbacks: {
     async session({ session, user }: { session: Session; user: User }) {
       const [googleAccount] = await db.account.findMany({
