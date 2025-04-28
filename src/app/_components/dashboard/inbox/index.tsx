@@ -5,11 +5,13 @@ import { api } from "~/trpc/react";
 import { skipToken } from "@tanstack/react-query";
 import { EmailView } from "../view/EmailView";
 
-export default function Inbox() {
-  const { data, isLoading } = api.gmail.listMessages.useQuery({
-    labelIds: ["INBOX"],
-    maxResults: 20,
-  });
+export default function EmailList({ label }: { label: string }) {
+    const labelIds = label === "ALL_MAIL" ? undefined : [label];
+    const { data, isLoading } = api.gmail.listMessages.useQuery({
+      ...(labelIds ? { labelIds } : {}),
+      maxResults: 20,
+    });
+
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
 

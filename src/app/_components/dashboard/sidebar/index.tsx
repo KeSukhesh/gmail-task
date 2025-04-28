@@ -100,9 +100,9 @@ export default function Sidebar({
 
         {/* Inbox */}
         <button
-          onClick={() => setSection("inbox")}
+          onClick={() => setSection("INBOX")}
           className={`flex items-center ${isCollapsed ? "justify-center" : "gap-2"} w-full rounded p-2 hover:bg-gray-100 dark:hover:bg-gray-800 ${
-            activeTab === "inbox" ? "bg-gray-100 dark:bg-gray-800" : ""
+            activeTab === "INBOX" ? "bg-gray-100 dark:bg-gray-800" : ""
           }`}
         >
           <svg width="14" height="14" fill="none">
@@ -127,9 +127,9 @@ export default function Sidebar({
 
         {/* Starred */}
         <button
-          onClick={() => setSection("starred")}
+          onClick={() => setSection("STARRED")}
           className={`flex items-center ${isCollapsed ? "justify-center" : "gap-2"} w-full rounded p-2 hover:bg-gray-100 dark:hover:bg-gray-800 ${
-            activeTab === "starred" ? "bg-gray-100 dark:bg-gray-800" : ""
+            activeTab === "STARRED" ? "bg-gray-100 dark:bg-gray-800" : ""
           }`}
         >
           <svg width="14" height="14" fill="none" viewBox="0 0 24 24">
@@ -144,9 +144,9 @@ export default function Sidebar({
 
         {/* Sent */}
         <button
-          onClick={() => setSection("sent")}
+          onClick={() => setSection("SENT")}
           className={`flex items-center ${isCollapsed ? "justify-center" : "gap-2"} w-full rounded p-2 hover:bg-gray-100 dark:hover:bg-gray-800 ${
-            activeTab === "sent" ? "bg-gray-100 dark:bg-gray-800" : ""
+            activeTab === "SENT" ? "bg-gray-100 dark:bg-gray-800" : ""
           }`}
         >
           <svg width="14" height="14" fill="none" viewBox="0 0 24 24">
@@ -157,6 +157,33 @@ export default function Sidebar({
             />
           </svg>
           {!isCollapsed && <span className="text-sm">Sent</span>}
+        </button>
+
+        {/* All Mail */}
+        <button
+          onClick={() => setSection("ALL_MAIL")}
+          className={`flex items-center ${isCollapsed ? "justify-center" : "gap-2"} w-full rounded p-2 hover:bg-gray-100 dark:hover:bg-gray-800 ${
+            activeTab === "ALL_MAIL" ? "bg-gray-100 dark:bg-gray-800" : ""
+          }`}
+        >
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <rect
+              x="1"
+              y="1"
+              width="12"
+              height="12"
+              rx="2"
+              stroke="#5C5E63"
+              strokeWidth="1.1"
+            />
+            <text x="7" y="5" textAnchor="middle" fontSize="4" fill="#5C5E63">
+              A
+            </text>
+            <text x="7" y="9" textAnchor="middle" fontSize="4" fill="#5C5E63">
+              M
+            </text>
+          </svg>
+          {!isCollapsed && <span className="text-sm">All Mail</span>}
         </button>
       </div>
 
