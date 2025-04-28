@@ -1,28 +1,35 @@
 "use client";
 
-import { useSession } from "next-auth/react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { api } from "~/trpc/react";
+import { skipToken } from "@tanstack/react-query";
 
 interface GmailMessage {
   id: string;
-  snippet: string;
-  internalDate: string;
-  payload: any;
+  snippet?: string;
+  internalDate?: string;
+  subject?: string;
 }
 
 export default function Inbox() {
-  const { data: session } = useSession();
-  const [emails, setEmails] = useState<GmailMessage[]>([]);
-  const [selectedEmail, setSelectedEmail] = useState<GmailMessage | null>(null);
+  // Fetch a list of message IDs/snippets
+  const { data, isLoading } = api.gmail.listMessages.useQuery({
+    labelIds: ["INBOX"],
+    maxResults: 20,
+  });
 
-  useEffect(() => {
-    if (!session) return;
-    fetch("/api/gmail")
-      .then((res) => res.json())
-      .then((data) => setEmails(data.messages ?? []));
-  }, [session]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
-  if (!session) return <div>Loading...</div>;
+  // When an email is selected, fetch the details
+  const { data: selectedEmail, isLoading: loadingDetails } =
+    api.gmail.getMessage.useQuery(
+      selectedId ? { messageId: selectedId, format: "full" } : skipToken,
+      { enabled: !!selectedId },
+    );
+
+  const emails = data?.messages ?? [];
+
+  if (isLoading) return <div>Loading...</div>;
 
   return (
     <div className="flex h-full">
@@ -30,31 +37,32 @@ export default function Inbox() {
         {emails.map((email) => (
           <div
             key={email.id}
-            className="cursor-pointer border-b px-4 py-2 hover:bg-gray-100"
-            onClick={() => setSelectedEmail(email)}
+            className="flex h-24 cursor-pointer flex-col border-b px-4 py-2 hover:bg-gray-100"
+            onClick={() => setSelectedId(email.id ?? null)}
           >
-            <div className="text-xs text-gray-500">
-              {new Date(Number(email.internalDate)).toLocaleString()}
+            <div className="mb-1 text-xs text-gray-500">
+              {email.internalDate
+                ? new Date(Number(email.internalDate)).toLocaleString()
+                : ""}
             </div>
-            <div className="font-semibold">{getSubject(email.payload)}</div>
-            <div className="truncate text-sm text-gray-600">
-              {email.snippet}
+            <div className="mb-1 truncate font-semibold">
+              {email.subject || "(No subject)"}
+            </div>
+            <div className="line-clamp-2 text-sm text-gray-600">
+              {email.snippet || "No snippet available"}
             </div>
           </div>
         ))}
       </div>
       <div className="flex-1 overflow-auto p-6">
-        {selectedEmail ? (
-          <div>
-            <div className="mb-2 text-xl font-bold">
-              {getSubject(selectedEmail.payload)}
-            </div>
-            <div className="mb-2 text-xs">
-              {new Date(Number(selectedEmail.internalDate)).toLocaleString()}
-            </div>
-            <div className="text-sm">{selectedEmail.snippet}</div>
-            {/* For more, parse payload.body for HTML/plaintext */}
-          </div>
+        {selectedId ? (
+          loadingDetails ? (
+            <div>Loading...</div>
+          ) : selectedEmail ? (
+            <EmailDetail message={selectedEmail} />
+          ) : (
+            <div className="text-gray-400">Error loading email</div>
+          )
         ) : (
           <div className="text-gray-400">Select an email to view details</div>
         )}
@@ -63,9 +71,26 @@ export default function Inbox() {
   );
 }
 
-function getSubject(payload: any) {
-  const subjectHeader = payload?.headers?.find(
+function EmailDetail({ message }: { message: any }) {
+  const subject = message?.payload?.headers?.find(
     (h: any) => h.name === "Subject",
+  )?.value;
+
+  const from = message?.payload?.headers?.find(
+    (h: any) => h.name === "From",
+  )?.value;
+
+  // Add more parsing for HTML body as needed
+  return (
+    <div>
+      <div className="mb-2 text-xl font-bold">{subject || "(No subject)"}</div>
+      <div className="mb-2 text-xs">{from}</div>
+      <div className="mb-2 text-xs">
+        {message.internalDate
+          ? new Date(Number(message.internalDate)).toLocaleString()
+          : ""}
+      </div>
+      <div className="text-sm">{message.snippet}</div>
+    </div>
   );
-  return subjectHeader?.value || "(No subject)";
 }

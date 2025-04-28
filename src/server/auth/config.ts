@@ -4,7 +4,6 @@ import GoogleProvider from "next-auth/providers/google";
 import type { Session, User } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import type { Account } from "next-auth";
-
 import { db } from "~/server/db";
 
 /**
@@ -17,9 +16,12 @@ declare module "next-auth" {
   interface Session extends DefaultSession {
     user: {
       id: string;
+      accessToken?: string;
+      refreshToken?: string;
       // ...other properties
       // role: UserRole;
     } & DefaultSession["user"];
+    error?: "RefreshTokenError";
   }
 
   // interface User {
@@ -42,38 +44,74 @@ export const authConfig = {
         params: {
           scope:
             "openid email profile https://www.googleapis.com/auth/gmail.readonly",
+          access_type: "offline", // << REQUIRED for refresh_token
+          prompt: "consent",
         },
       },
     }),
   ],
-  // adapter: PrismaAdapter(db), // can't use with JWT
-  session: { strategy: "jwt" },
+  adapter: PrismaAdapter(db),
+  session: { strategy: "database" },
   callbacks: {
-    session: ({
-      session,
-      token,
-    }: {
-      session: Session;
-      token: JWT;
-    }) => ({
-      ...session,
-      user: {
-        ...session.user,
-        id: token.sub,
-      },
-      accessToken: token.accessToken,
-    }),
-    jwt: ({
-      token,
-      account,
-    }: {
-      token: JWT;
-      account?: Account | null;
-    }) => {
-      if (account) {
-        token.accessToken = account.access_token;
+    async session({ session, user }: { session: Session; user: User }) {
+      const [googleAccount] = await db.account.findMany({
+        where: { userId: user.id, provider: "google" },
+      });
+
+      if (googleAccount) {
+        session.user.accessToken = googleAccount.access_token ?? undefined;
+        session.user.refreshToken = googleAccount.refresh_token ?? undefined;
       }
-      return token;
+
+      if (
+        googleAccount?.expires_at &&
+        googleAccount.expires_at * 1000 < Date.now()
+      ) {
+        // If the access token has expired, try to refresh it
+        try {
+          // https://accounts.google.com/.well-known/openid-configuration
+          // We need the `token_endpoint`.
+          const response = await fetch("https://oauth2.googleapis.com/token", {
+            method: "POST",
+            body: new URLSearchParams({
+              client_id: process.env.AUTH_GOOGLE_ID!,
+              client_secret: process.env.AUTH_GOOGLE_SECRET!,
+              grant_type: "refresh_token",
+              refresh_token: googleAccount?.refresh_token ?? "",
+            }),
+          });
+
+          const tokensOrError = await response.json();
+
+          if (!response.ok) throw tokensOrError;
+
+          const newTokens = tokensOrError as {
+            access_token: string;
+            expires_in: number;
+            refresh_token?: string;
+          };
+
+          await db.account.update({
+            data: {
+              access_token: newTokens.access_token,
+              expires_at: Math.floor(Date.now() / 1000 + newTokens.expires_in),
+              refresh_token:
+                newTokens.refresh_token ?? googleAccount.refresh_token,
+            },
+            where: {
+              provider_providerAccountId: {
+                provider: "google",
+                providerAccountId: googleAccount.providerAccountId,
+              },
+            },
+          });
+        } catch (error) {
+          console.error("Error refreshing access_token", error);
+          // If we fail to refresh the token, return an error so we can handle it on the page
+          session.error = "RefreshTokenError";
+        }
+      }
+      return session;
     },
   },
   pages: {

@@ -13,6 +13,7 @@ import { ZodError } from "zod";
 
 import { auth } from "~/server/auth";
 import { db } from "~/server/db";
+import { google } from "googleapis";
 
 /**
  * 1. CONTEXT
@@ -29,9 +30,30 @@ import { db } from "~/server/db";
 export const createTRPCContext = async (opts: { headers: Headers }) => {
   const session = await auth();
 
+  // --- Google OAuth2 + Gmail Setup ---
+  let gmail: ReturnType<typeof google.gmail> | null = null;
+  let googleClient: InstanceType<typeof google.auth.OAuth2> | null = null;
+
+  // Only if user is authenticated and tokens exist
+  if (session?.user && session.user.accessToken && session.user.refreshToken) {
+    googleClient = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_REDIRECT_URI, // must match what you use in Google Cloud
+    );
+    googleClient.setCredentials({
+      access_token: session.user.accessToken,
+      refresh_token: session.user.refreshToken,
+    });
+
+    gmail = google.gmail({ version: "v1", auth: googleClient });
+  }
+
   return {
     db,
     session,
+    googleClient, // <- now on context!
+    gmail, // <- now on context!
     ...opts,
   };
 };
