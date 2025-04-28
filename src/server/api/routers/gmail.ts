@@ -2,14 +2,6 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 
-// Basic message shape for UI typing (expand as needed)
-const MessageSchema = z.object({
-  id: z.string(),
-  threadId: z.string(),
-  labelIds: z.array(z.string()).optional(),
-  snippet: z.string().optional(),
-});
-
 export const gmailRouter = createTRPCRouter({
   /**
    * List messages in user's inbox (can add labelId, search, pagination, etc.)

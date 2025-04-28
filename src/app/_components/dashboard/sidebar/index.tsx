@@ -3,7 +3,6 @@
 import Image from "next/image";
 import { signOut, useSession } from "next-auth/react";
 import type { Section } from "../wrapper/dashboardWrapper";
-import { useState } from "react";
 
 interface SidebarProps {
   isCollapsed: boolean;
@@ -19,7 +18,6 @@ export default function Sidebar({
   setSection,
 }: SidebarProps) {
   const { data: session } = useSession();
-  const [isHovered, setIsHovered] = useState(false);
 
   if (!session?.user) return null;
 
@@ -45,11 +43,9 @@ export default function Sidebar({
         isCollapsed ? "w-14" : "w-56"
       }`}
       onMouseEnter={() => {
-        setIsHovered(true);
         setCollapsed(false);
       }}
       onMouseLeave={() => {
-        setIsHovered(false);
         setCollapsed(true);
       }}
     >
