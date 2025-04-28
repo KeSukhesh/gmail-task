@@ -1,12 +1,25 @@
 "use client";
 
-interface GmailMessage {
+export interface GmailHeader {
+  name: string;
+  value: string;
+}
+
+export interface GmailMessagePayload {
+  headers?: GmailHeader[];
+  body?: {
+    data?: string;
+  };
+  parts?: GmailMessagePayload[];
+}
+
+export interface GmailMessage {
   id: string;
   snippet?: string | null;
   internalDate?: string | null;
   subject?: string;
   from?: string;
-  payload?: any;
+  payload?: GmailMessagePayload;
 }
 
 interface EmailViewProps {
@@ -14,7 +27,10 @@ interface EmailViewProps {
   selectedId: string | null;
   onSelect: (id: string) => void;
   loading?: boolean;
-  useMessageQuery: (id: string | null) => { data?: any; isLoading: boolean };
+  useMessageQuery: (id: string | null) => {
+    data?: GmailMessage;
+    isLoading: boolean;
+  };
 }
 
 export function EmailView({
@@ -71,18 +87,16 @@ export function EmailView({
   );
 }
 
-function EmailDetail({ message }: { message: any }) {
+function EmailDetail({ message }: { message: GmailMessage }) {
   const subject = message?.payload?.headers?.find(
-    (h: any) => h.name === "Subject",
+    (h) => h.name === "Subject",
   )?.value;
 
-  const from = message?.payload?.headers?.find(
-    (h: any) => h.name === "From",
-  )?.value;
+  const from = message?.payload?.headers?.find((h) => h.name === "From")?.value;
 
   return (
     <div>
-      <div className="mb-2 text-xl font-bold">{subject || "(No subject)"}</div>
+      <div className="mb-2 text-xl font-bold">{subject ?? "(No subject)"}</div>
       <div className="mb-2 text-xs">{from}</div>
       <div className="mb-2 text-xs">
         {message.internalDate
