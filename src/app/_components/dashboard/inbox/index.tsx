@@ -1,9 +1,5 @@
-"use client"
+"use client";
 
 export default function Inbox() {
-    return (
-        <div>
-            Inbox!
-        </div>
-    )
+  return <div>Inbox!</div>;
 }
