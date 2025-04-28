@@ -63,10 +63,10 @@ export const gmailRouter = createTRPCRouter({
             // You can include subject/from directly for speed
             subject:
               msgRes.data.payload?.headers?.find((h) => h.name === "Subject")
-                ?.value || "",
+                ?.value ?? "",
             from:
               msgRes.data.payload?.headers?.find((h) => h.name === "From")
-                ?.value || "",
+                ?.value ?? "",
           };
         }),
       );

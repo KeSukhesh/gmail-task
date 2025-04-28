@@ -62,10 +62,10 @@ export function EmailView({
                 : ""}
             </div>
             <div className="mb-1 truncate font-semibold">
-              {email.subject || "(No subject)"}
+              {email.subject ?? "(No subject)"}
             </div>
             <div className="line-clamp-2 text-sm text-gray-600">
-              {email.snippet || "No snippet available"}
+              {email.snippet ?? "No snippet available"}
             </div>
           </div>
         ))}
