@@ -47,7 +47,8 @@ export function Mail({
   searchQuery,
 }: MailProps) {
   const [isCollapsed, setIsCollapsed] = React.useState(defaultCollapsed);
-  const [selectedMailId] = useMail();
+  const [selectedMailId, setSelectedMailId] = useMail();
+  const [tabValue, setTabValue] = React.useState("all");
   const { data: session } = useSession();
 
   const getLabelId = (section: string): string => {
@@ -114,6 +115,9 @@ export function Mail({
     const emailMatch = /<([^>]+)>/.exec(from);
     const email = emailMatch?.[1] ?? from;
 
+    // If this is the selected message, consider it read
+    const isRead = selectedMailId === message.id || !message.labelIds?.includes("UNREAD");
+
     return {
       id: message.id,
       name,
@@ -127,10 +131,10 @@ export function Mail({
       payload: message.payload,
       labelIds: message.labelIds ?? [],
       labels: (message.labelIds ?? []).map(getLabelName),
-      read: !message.labelIds?.includes("UNREAD"),
+      read: isRead,
       htmlUrl: message.htmlUrl ?? null,
     };
-  }, []);
+  }, [selectedMailId]);
 
   const filteredAndTransformedMessages = React.useMemo(() => {
     return (messages?.messages ?? [])
@@ -148,6 +152,13 @@ export function Mail({
       .filter((message): message is Mail => message !== null);
   }, [messages, searchQuery, transformMessage]);
 
+  const filteredMessagesByTab = React.useMemo(() => {
+    if (tabValue === "unread") {
+      return filteredAndTransformedMessages.filter((item) => !item.read);
+    }
+    return filteredAndTransformedMessages;
+  }, [filteredAndTransformedMessages, tabValue]);
+
   const { mutate: syncEmails, isPending: isSyncing } = api.gmail.syncEmails.useMutation({
     onSuccess: () => {
       console.log("Synced!");
@@ -158,6 +169,17 @@ export function Mail({
       console.error("Failed to sync emails:", error);
     }
   });
+
+  const { mutate: markAsRead } = api.gmail.markAsRead.useMutation({
+    onSuccess: () => {
+      void refetchMessages();
+    },
+  });
+
+  const handleMailSelect = React.useCallback((mailId: string) => {
+    setSelectedMailId({ selected: mailId });
+    markAsRead({ messageId: mailId });
+  }, [setSelectedMailId, markAsRead]);
 
   const selectedMessage = selectedMessageData ? transformMessage(selectedMessageData) : null;
 
@@ -366,7 +388,7 @@ export function Mail({
                   <span>Sync Emails</span>
                 </Button>
               </div>
-              <Tabs defaultValue="all">
+              <Tabs value={tabValue} onValueChange={setTabValue}>
                 <TabsList>
                   <TabsTrigger
                     value="all"
@@ -392,20 +414,11 @@ export function Mail({
                   </div>
                 </form>
               </div>
-              <Tabs defaultValue="all">
-                <TabsContent value="all" className="m-0">
-                  <MailList
-                    items={filteredAndTransformedMessages}
-                    isLoading={isMessagesLoading}
-                  />
-                </TabsContent>
-                <TabsContent value="unread" className="m-0">
-                  <MailList
-                    items={filteredAndTransformedMessages.filter((item) => !item.read)}
-                    isLoading={isMessagesLoading}
-                  />
-                </TabsContent>
-              </Tabs>
+              <MailList
+                items={filteredMessagesByTab}
+                isLoading={isMessagesLoading}
+                onSelect={handleMailSelect}
+              />
             </div>
           </div>
         </ResizablePanel>

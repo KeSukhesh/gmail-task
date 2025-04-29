@@ -7,14 +7,21 @@ import type { Mail } from "./types";
 import { useMail } from "./mail-context";
 import { safeFormatDistance } from "./utils";
 import { Loader2 } from "lucide-react";
+import React from "react";
 
 interface MailListProps {
   items: Mail[];
   isLoading?: boolean;
+  onSelect?: (mailId: string) => void;
 }
 
-export function MailList({ items, isLoading }: MailListProps) {
+export function MailList({ items, isLoading, onSelect }: MailListProps) {
   const [selectedMailId, setSelectedMailId] = useMail();
+
+  const handleSelect = React.useCallback((mailId: string) => {
+    setSelectedMailId({ selected: mailId });
+    onSelect?.(mailId);
+  }, [setSelectedMailId, onSelect]);
 
   return (
     <ScrollArea className="h-screen">
@@ -31,7 +38,7 @@ export function MailList({ items, isLoading }: MailListProps) {
               "flex flex-col items-start gap-2 rounded-lg border p-3 text-left text-sm transition-all hover:bg-accent",
                 selectedMailId === item.id && "bg-muted"
             )}
-              onClick={() => setSelectedMailId({ selected: item.id })}
+              onClick={() => handleSelect(item.id)}
           >
             <div className="flex w-full flex-col gap-1">
               <div className="flex items-center">

@@ -168,6 +168,59 @@ export const gmailRouter = createTRPCRouter({
     await syncGmailEmails(ctx.session.user.id);
     return { success: true };
   }),
+
+  /**
+   * Mark an email as read
+   */
+  markAsRead: protectedProcedure
+    .input(
+      z.object({
+        messageId: z.string(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      // Get current email to update labelIds
+      const currentEmail = await ctx.db.email.findUnique({
+        where: {
+          id: input.messageId,
+          userId: ctx.session.user.id,
+        },
+      });
+
+      if (!currentEmail) {
+        throw new TRPCError({ code: "NOT_FOUND" });
+      }
+
+      // Update in database
+      await ctx.db.email.update({
+        where: {
+          id: input.messageId,
+          userId: ctx.session.user.id,
+        },
+        data: {
+          isRead: true,
+          labelIds: currentEmail.labelIds.filter((label) => label !== "UNREAD"),
+        },
+      });
+
+      // Update in Gmail if we have access
+      if (ctx.gmail) {
+        try {
+          await ctx.gmail.users.messages.modify({
+            userId: "me",
+            id: input.messageId,
+            requestBody: {
+              removeLabelIds: ["UNREAD"],
+            },
+          });
+        } catch (error) {
+          console.error("Failed to mark email as read in Gmail:", error);
+          // Continue anyway since we updated our DB
+        }
+      }
+
+      return { success: true };
+    }),
 });
 
 
