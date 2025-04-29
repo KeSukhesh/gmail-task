@@ -18,7 +18,9 @@ export interface GmailMessage {
   snippet?: string | null;
   internalDate?: string | null;
   payload?: MessagePart | null;
-  labelIds?: string[];
+  labelIds?: string[] | null;
+  htmlUrl?: string | null;
+  text?: string | null;
 }
 
 export interface Mail {
@@ -35,6 +37,7 @@ export interface Mail {
   labelIds?: string[];
   labels: string[];
   read: boolean;
+  htmlUrl: string | null;
 }
 
 export interface MailState {

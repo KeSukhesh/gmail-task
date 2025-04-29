@@ -13,7 +13,8 @@ import { ZodError } from "zod";
 
 import { auth } from "~/server/auth";
 import { db } from "~/server/db";
-import { google } from "googleapis";
+import type { google } from "googleapis";
+import { gmailClient } from "~/server/gmail/client";
 
 /**
  * 1. CONTEXT
@@ -32,27 +33,18 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
 
   // --- Google OAuth2 + Gmail Setup ---
   let gmail: ReturnType<typeof google.gmail> | null = null;
-  let googleClient: InstanceType<typeof google.auth.OAuth2> | null = null;
 
-  // Only if user is authenticated and tokens exist
-  if (session?.user && session.user.accessToken && session.user.refreshToken) {
-    googleClient = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI, // has to be same as google cloud
-    );
-    googleClient.setCredentials({
-      access_token: session.user.accessToken,
-      refresh_token: session.user.refreshToken,
-    });
-
-    gmail = google.gmail({ version: "v1", auth: googleClient });
+  if (session?.user?.id) {
+    try {
+      gmail = await gmailClient(session.user.id);
+    } catch (error) {
+      console.error("Failed to create Gmail client:", error);
+    }
   }
 
   return {
     db,
     session,
-    googleClient,
     gmail,
     ...opts,
   };

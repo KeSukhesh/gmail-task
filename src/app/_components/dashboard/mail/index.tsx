@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Search } from "lucide-react";
+import { Search, RefreshCw } from "lucide-react";
 import { api } from "~/trpc/react";
 import { skipToken } from "@tanstack/react-query";
 import { cn } from "../../../../lib/utils";
@@ -24,6 +24,7 @@ import type { Mail, MessagePart } from "./types";
 import { useMail } from "./mail-context";
 import type { Section } from "../wrapper/dashboardWrapper";
 import Image from "next/image";
+import { Button } from "../../../../components/ui/button";
 
 interface MailProps {
   defaultLayout?: number[];
@@ -67,7 +68,7 @@ export function Mail({
   };
 
   const labelIds = section === "ALL_MAIL" ? undefined : [getLabelId(section)];
-  const { data: messages, isLoading: isMessagesLoading } = api.gmail.listMessages.useQuery({
+  const { data: messages, isLoading: isMessagesLoading, refetch: refetchMessages } = api.gmail.listMessages.useQuery({
     ...(labelIds ? { labelIds } : {}),
     maxResults: 20,
   }, {
@@ -86,6 +87,9 @@ export function Mail({
     internalDate?: string | null;
     payload?: MessagePart;
     labelIds?: string[] | null;
+    html?: string | null;
+    text?: string | null;
+    htmlUrl?: string | null;
   }): Mail | null => {
     const getLabelName = (labelId: string): string => {
       const labelMap: Record<string, string> = {
@@ -113,7 +117,7 @@ export function Mail({
       name,
       email,
       subject: headers.find((h) => h.name === "Subject")?.value ?? "",
-      text: message.snippet ?? "",
+      text: message.text ?? message.snippet ?? "",
       date: message.internalDate ? new Date(Number(message.internalDate)).toLocaleDateString() : "",
       snippet: message.snippet ?? "",
       internalDate: message.internalDate ?? "",
@@ -122,6 +126,7 @@ export function Mail({
       labelIds: message.labelIds ?? [],
       labels: (message.labelIds ?? []).map(getLabelName),
       read: !message.labelIds?.includes("UNREAD"),
+      htmlUrl: message.htmlUrl ?? null,
     };
   }, []);
 
@@ -141,6 +146,17 @@ export function Mail({
       .filter((message): message is Mail => message !== null);
   }, [messages, searchQuery, transformMessage]);
 
+  const { mutate: syncEmails, isPending: isSyncing } = api.gmail.syncEmails.useMutation({
+    onSuccess: () => {
+      console.log("Synced!");
+      // Refetch messages after sync
+      void refetchMessages();
+    },
+    onError: (error) => {
+      console.error("Failed to sync emails:", error);
+    }
+  });
+
   const selectedMessage = selectedMessageData ? transformMessage(selectedMessageData) : null;
 
   return (
@@ -148,9 +164,7 @@ export function Mail({
       <ResizablePanelGroup
         direction="horizontal"
         onLayout={(sizes: number[]) => {
-          document.cookie = `react-resizable-panels:layout:mail=${JSON.stringify(
-            sizes
-          )}`;
+          document.cookie = `react-resizable-panels:layout:mail=${JSON.stringify(sizes)}`;
         }}
         className="h-screen"
       >
@@ -162,15 +176,11 @@ export function Mail({
           maxSize={20}
           onCollapse={() => {
             setIsCollapsed(true);
-            document.cookie = `react-resizable-panels:collapsed=${JSON.stringify(
-              true
-            )}`;
+            document.cookie = `react-resizable-panels:collapsed=${JSON.stringify(true)}`;
           }}
           onResize={() => {
             setIsCollapsed(false);
-            document.cookie = `react-resizable-panels:collapsed=${JSON.stringify(
-              false
-            )}`;
+            document.cookie = `react-resizable-panels:collapsed=${JSON.stringify(false)}`;
           }}
           className={cn(
             isCollapsed &&
@@ -299,25 +309,37 @@ export function Mail({
           <div className="flex h-full flex-col">
             <div className="flex h-14 items-center justify-between border-b px-4">
               <h1 className="text-xl font-bold">{currentSection.charAt(0) + currentSection.slice(1).toLowerCase().replace("_", " ")}</h1>
-              <Tabs defaultValue="all">
-                <TabsList>
-                  <TabsTrigger
-                    value="all"
-                    className="text-zinc-600 dark:text-zinc-200"
-                  >
-                    All mail
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="unread"
-                    className="text-zinc-600 dark:text-zinc-200"
-                  >
-                    Unread
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
+              <div className="flex items-center gap-4">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-2"
+                  onClick={() => syncEmails()}
+                  disabled={isSyncing}
+                >
+                  <RefreshCw className={cn("h-4 w-4", isSyncing && "animate-spin")} />
+                  <span>Sync Emails</span>
+                </Button>
+                <Tabs defaultValue="all">
+                  <TabsList>
+                    <TabsTrigger
+                      value="all"
+                      className="text-zinc-600 dark:text-zinc-200"
+                    >
+                      All mail
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="unread"
+                      className="text-zinc-600 dark:text-zinc-200"
+                    >
+                      Unread
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
             </div>
-            <div className="flex-1 overflow-auto">
-              <div className="bg-background/95 p-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+            <div className="flex-1 overflow-auto bg-[#F9FAFB]">
+              <div className="bg-[#F9FAFB] p-4 backdrop-blur">
                 <form>
                   <div className="relative">
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
   Archive,
   ArchiveX,
@@ -43,6 +44,22 @@ interface MailDisplayProps {
 }
 
 export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
+  const [htmlContent, setHtmlContent] = useState<string | null>(null);
+  const [isLoadingHtml, setIsLoadingHtml] = useState(false);
+
+  useEffect(() => {
+    if (mail?.htmlUrl) {
+      setIsLoadingHtml(true);
+      fetch(mail.htmlUrl)
+        .then((response) => response.text())
+        .then((html) => setHtmlContent(html))
+        .catch((error) => console.error("Error fetching HTML:", error))
+        .finally(() => setIsLoadingHtml(false));
+    } else {
+      setHtmlContent(null);
+    }
+  }, [mail?.htmlUrl]);
+
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -193,7 +210,18 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
           </div>
           <Separator />
           <div className="flex-1 whitespace-pre-wrap p-4 text-sm">
-            {mail.text}
+            {isLoadingHtml ? (
+              <div className="flex items-center justify-center">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : htmlContent ? (
+              <div
+                className="prose prose-sm max-w-none dark:prose-invert"
+                dangerouslySetInnerHTML={{ __html: htmlContent }}
+              />
+            ) : (
+              mail.text
+            )}
           </div>
           <Separator className="mt-auto" />
           <div className="p-4">
