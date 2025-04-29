@@ -1,40 +1,31 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { MailProvider } from "../_components/dashboard/mail/mail-context";
-import { Mail } from "../_components/dashboard/mail";
-import type { Section } from "../_components/dashboard/wrapper/dashboardWrapper";
+import DashboardShell from "../_components/dashboard/wrapper/dashboardWrapper";
+import { api } from "~/trpc/react";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 export default function DashboardPage() {
-  const [defaultLayout, setDefaultLayout] = useState<number[] | undefined>(undefined);
-  const [defaultCollapsed, setDefaultCollapsed] = useState<boolean | undefined>(undefined);
-  const [currentSection, setCurrentSection] = useState<Section>("INBOX");
+  const { status } = useSession();
+  const router = useRouter();
+  const { data: user, isLoading } = api.user.getUser.useQuery(undefined, {
+    enabled: status === "authenticated",
+  });
 
   useEffect(() => {
-    const layout = localStorage.getItem("react-resizable-panels:layout:mail");
-    const collapsed = localStorage.getItem("react-resizable-panels:collapsed");
-
-    if (layout) {
-      setDefaultLayout(JSON.parse(layout) as number[]);
+    if (status === "unauthenticated") {
+      router.push("/");
     }
-    if (collapsed) {
-      setDefaultCollapsed(JSON.parse(collapsed) as boolean);
-    }
-  }, []);
+  }, [status, router]);
 
-  return (
-    <MailProvider>
-      <div className="hidden flex-col md:flex">
-        <Mail
-          defaultLayout={defaultLayout}
-          defaultCollapsed={defaultCollapsed}
-          navCollapsedSize={4}
-          currentSection={currentSection}
-          setSection={setCurrentSection}
-          section={currentSection}
-          searchQuery=""
-        />
+  if (status === "loading" || isLoading || !user) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-blue-600" />
       </div>
-    </MailProvider>
-  );
+    );
+  }
+
+  return <DashboardShell />;
 }

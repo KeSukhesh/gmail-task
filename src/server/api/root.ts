@@ -1,5 +1,6 @@
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 import { gmailRouter } from "./routers/gmail";
+import { userRouter } from "./routers/user";
 
 /**
  * This is the primary router for your server.
@@ -8,6 +9,7 @@ import { gmailRouter } from "./routers/gmail";
  */
 export const appRouter = createTRPCRouter({
   gmail: gmailRouter,
+  user: userRouter,
 });
 
 // export type definition of API

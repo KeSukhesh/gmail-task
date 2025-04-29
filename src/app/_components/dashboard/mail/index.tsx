@@ -353,8 +353,8 @@ export function Mail({
         <ResizablePanel defaultSize={defaultLayout[1]} minSize={30}>
           <div className="flex h-full flex-col">
             <div className="flex h-14 items-center justify-between border-b px-4">
-              <h1 className="text-xl font-bold">{currentSection.charAt(0) + currentSection.slice(1).toLowerCase().replace("_", " ")}</h1>
               <div className="flex items-center gap-4">
+                <h1 className="text-xl font-bold">{currentSection.charAt(0) + currentSection.slice(1).toLowerCase().replace("_", " ")}</h1>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -365,23 +365,23 @@ export function Mail({
                   <RefreshCw className={cn("h-4 w-4", isSyncing && "animate-spin")} />
                   <span>Sync Emails</span>
                 </Button>
-                <Tabs defaultValue="all">
-                  <TabsList>
-                    <TabsTrigger
-                      value="all"
-                      className="text-zinc-600 dark:text-zinc-200"
-                    >
-                      All mail
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="unread"
-                      className="text-zinc-600 dark:text-zinc-200"
-                    >
-                      Unread
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
               </div>
+              <Tabs defaultValue="all">
+                <TabsList>
+                  <TabsTrigger
+                    value="all"
+                    className="text-zinc-600 dark:text-zinc-200"
+                  >
+                    All mail
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="unread"
+                    className="text-zinc-600 dark:text-zinc-200"
+                  >
+                    Unread
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
             </div>
             <div className="flex-1 overflow-auto bg-[#F9FAFB]">
               <div className="bg-[#F9FAFB] p-4 backdrop-blur">
