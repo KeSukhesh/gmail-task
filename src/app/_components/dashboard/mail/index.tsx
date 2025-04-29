@@ -71,7 +71,7 @@ export function Mail({
     query: searchQuery || undefined,
   });
 
-  const { data: selectedMessage } = api.gmail.getMessage.useQuery(
+  const { data: selectedMessage, isLoading: isMessageLoading } = api.gmail.getMessage.useQuery(
     selectedMailId ? { messageId: selectedMailId, format: "full" } : skipToken,
     { enabled: !!selectedMailId }
   );
@@ -129,10 +129,6 @@ export function Mail({
     labels: selectedMessage.labelIds ?? [],
     read: !selectedMessage.labelIds?.includes("UNREAD"),
   } : null;
-
-  if (isLoading) {
-    return <div>Loading...</div>;
-  }
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -318,10 +314,10 @@ export function Mail({
                   </form>
                 </div>
                 <TabsContent value="all" className="m-0">
-                  <MailList items={mails} />
+                  <MailList items={mails} isLoading={isLoading} />
                 </TabsContent>
                 <TabsContent value="unread" className="m-0">
-                  <MailList items={mails.filter((item) => !item.read)} />
+                  <MailList items={mails.filter((item) => !item.read)} isLoading={isLoading} />
                 </TabsContent>
               </Tabs>
             </div>
@@ -334,7 +330,7 @@ export function Mail({
               <h1 className="text-xl font-bold">Message</h1>
             </div>
             <div className="flex-1 overflow-auto">
-              <MailDisplay mail={selectedMail} />
+              <MailDisplay mail={selectedMail} isLoading={isMessageLoading} />
             </div>
           </div>
         </ResizablePanel>

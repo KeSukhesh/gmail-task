@@ -10,6 +10,7 @@ import {
   ReplyAll,
   Trash2,
 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 import { Button } from "../../../../components/ui/button";
 import { Calendar } from "../../../../components/ui/calendar";
@@ -38,9 +39,10 @@ import { safeFormat } from "./utils";
 
 interface MailDisplayProps {
   mail: Mail | null;
+  isLoading?: boolean;
 }
 
-export function MailDisplay({ mail }: MailDisplayProps) {
+export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
   const today = new Date();
 
   return (
@@ -163,7 +165,11 @@ export function MailDisplay({ mail }: MailDisplayProps) {
         </DropdownMenu>
       </div>
       <Separator />
-      {mail ? (
+      {isLoading ? (
+        <div className="flex h-full items-start justify-center pt-8">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : mail ? (
         <div className="flex flex-1 flex-col">
           <div className="flex items-start p-4">
             <div className="flex items-start gap-4 text-sm">
