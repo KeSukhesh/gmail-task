@@ -11,8 +11,10 @@ export default async function Home() {
     redirect("/login");
   }
 
-  // will be prefetching once we have proper backend sync func setup
-  // void api.post.getLatest.prefetch();
+  void api.gmail.listMessages.prefetch({
+    labelIds: ["INBOX"],
+    maxResults: 20,
+  });
 
   return (
     <SessionProvider session={session}>
