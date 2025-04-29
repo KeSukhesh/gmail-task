@@ -38,6 +38,7 @@ export interface Mail {
   labels: string[];
   read: boolean;
   htmlUrl: string | null;
+  threadId: string | null;
 }
 
 export interface MailState {

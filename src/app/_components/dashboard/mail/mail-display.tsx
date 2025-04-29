@@ -12,6 +12,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import { Button } from "../../../../components/ui/button";
 import { Calendar } from "../../../../components/ui/calendar";
@@ -35,8 +36,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "../../../../components/ui/tooltip";
+import { Avatar, AvatarFallback, AvatarImage } from "../../../../components/ui/avatar";
 import type { Mail } from "./types";
 import { safeFormat } from "./utils";
+import { api } from "~/trpc/react";
+import { useMail } from "./mail-context";
 
 interface MailDisplayProps {
   mail: Mail | null;
@@ -46,19 +50,147 @@ interface MailDisplayProps {
 export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
   const [htmlContent, setHtmlContent] = useState<string | null>(null);
   const [isLoadingHtml, setIsLoadingHtml] = useState(false);
+  const [replyContent, setReplyContent] = useState("");
+  const [isReplying, setIsReplying] = useState(false);
+  const [, setSelectedMailId] = useMail();
+  const utils = api.useUtils();
+
+  const { mutate: deleteMessage } = api.gmail.deleteMessage.useMutation({
+    onMutate: async (deletedMessage) => {
+      // Cancel any outgoing refetches
+      await utils.gmail.listMessages.cancel();
+      await utils.gmail.getMessage.cancel();
+
+      // Snapshot the previous value
+      const previousMessages = utils.gmail.listMessages.getData({});
+
+      // Optimistically update the list
+      utils.gmail.listMessages.setData({}, (old) => {
+        if (!old) return old;
+        return {
+          ...old,
+          messages: old.messages.filter((msg) => msg.id !== deletedMessage.messageId),
+        };
+      });
+
+      // Clear the selected message
+      setSelectedMailId({ selected: null });
+
+      return { previousMessages };
+    },
+    onError: (err, deletedMessage, context) => {
+      // Revert the optimistic update
+      if (context?.previousMessages) {
+        utils.gmail.listMessages.setData({}, context.previousMessages);
+      }
+    },
+    onSettled: () => {
+      // Sync with server
+      void utils.gmail.listMessages.invalidate();
+    },
+  });
+
+  const { mutate: replyMessage, isPending: isReplyingPending } = api.gmail.replyMessage.useMutation({
+    onMutate: () => {
+      console.log("Starting reply mutation...");
+    },
+    onSuccess: (data) => {
+      console.log("Reply sent successfully:", data);
+      setReplyContent("");
+      void utils.gmail.listMessages.invalidate();
+    },
+    onError: (error) => {
+      console.error("Failed to send reply:", error);
+    },
+  });
 
   useEffect(() => {
     if (mail?.htmlUrl) {
       setIsLoadingHtml(true);
       fetch(mail.htmlUrl)
         .then((response) => response.text())
-        .then((html) => setHtmlContent(html))
-        .catch((error) => console.error("Error fetching HTML:", error))
+        .then((html) => {
+          // Process HTML to handle images
+          const processedHtml = processHtmlContent(html);
+          setHtmlContent(processedHtml);
+        })
+        .catch((error) => {
+          console.error("Error fetching HTML:", error);
+          setHtmlContent(null);
+        })
         .finally(() => setIsLoadingHtml(false));
     } else {
       setHtmlContent(null);
     }
   }, [mail?.htmlUrl]);
+
+  // Function to process HTML content and handle images
+  const processHtmlContent = (html: string): string => {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+
+    // Handle images
+    const images = doc.getElementsByTagName('img');
+    for (const img of Array.from(images)) {
+      const src = img.getAttribute('src');
+      if (src) {
+        // Handle data URIs (they're already base64 encoded)
+        if (src.startsWith('data:')) {
+          continue;
+        }
+        
+        // Handle relative URLs
+        if (src.startsWith('/')) {
+          img.setAttribute('src', `https://mail.google.com${src}`);
+        }
+        
+        // Handle cid: URLs (inline attachments)
+        if (src.startsWith('cid:')) {
+          const cid = src.replace('cid:', '');
+          // We could fetch the attachment here if needed
+          img.setAttribute('src', `data:image/png;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7`); // 1x1 transparent pixel as fallback
+        }
+
+        // Add loading and error handling
+        img.setAttribute('loading', 'lazy');
+        img.setAttribute('onerror', 'this.onerror=null; this.src="data:image/png;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";');
+      }
+    }
+
+    return doc.documentElement.outerHTML;
+  };
+
+  const getInitials = (name: string): string => {
+    // Remove quotes and trim whitespace
+    const cleanName = name.replace(/["']/g, '').trim();
+    // Split by spaces and filter out empty strings
+    const words = cleanName.split(/\s+/).filter(Boolean);
+    // Take first letter of first two words
+    return words.slice(0, 2).map(word => word[0]).join('');
+  };
+
+  const handleDelete = () => {
+    if (mail) {
+      deleteMessage({ messageId: mail.id });
+    }
+  };
+
+  const handleReply = async (e: React.FormEvent) => {
+    e.preventDefault();
+    console.log("Form submitted, reply content:", replyContent);
+    
+    if (!mail || !replyContent.trim()) {
+      console.log("No mail selected or empty reply content");
+      return;
+    }
+    
+    console.log("Sending reply for message:", mail.id);
+    replyMessage({
+      messageId: mail.id,
+      threadId: mail.threadId ?? mail.id,
+      content: replyContent.trim(),
+    });
+  };
 
   if (isLoading) {
     return (
@@ -94,7 +226,7 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" disabled={!mail}>
+              <Button variant="ghost" size="icon" disabled={!mail} onClick={handleDelete}>
                 <Trash2 className="h-4 w-4" />
                 <span className="sr-only">Move to trash</span>
               </Button>
@@ -194,6 +326,12 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
         <div className="flex flex-1 flex-col">
           <div className="flex items-start p-4">
             <div className="flex items-start gap-4 text-sm">
+              <Avatar>
+                <AvatarImage alt={mail.name} />
+                <AvatarFallback>
+                  {getInitials(mail.name)}
+                </AvatarFallback>
+              </Avatar>
               <div className="grid gap-1">
                 <div className="font-semibold">{mail.name}</div>
                 <div className="line-clamp-1 text-xs">{mail.subject}</div>
@@ -216,7 +354,7 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
               </div>
             ) : htmlContent ? (
               <div
-                className="prose prose-sm max-w-none dark:prose-invert"
+                className="prose prose-sm max-w-none dark:prose-invert [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg [&_img]:shadow-sm"
                 dangerouslySetInnerHTML={{ __html: htmlContent }}
               />
             ) : (
@@ -225,26 +363,27 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
           </div>
           <Separator className="mt-auto" />
           <div className="p-4">
-            <form>
+            <form onSubmit={handleReply}>
               <div className="grid gap-4">
                 <Textarea
                   className="p-4"
                   placeholder={`Reply ${mail.name}...`}
+                  value={replyContent}
+                  onChange={(e) => setReplyContent(e.target.value)}
+                  disabled={isReplyingPending}
                 />
                 <div className="flex items-center">
-                  <Label
-                    htmlFor="mute"
-                    className="flex items-center gap-2 text-xs font-normal"
-                  >
-                    <Switch id="mute" aria-label="Mute thread" /> Mute this
-                    thread
-                  </Label>
                   <Button
-                    onClick={(e: React.MouseEvent) => e.preventDefault()}
+                    type="submit"
                     size="sm"
                     className="ml-auto"
+                    disabled={!replyContent.trim() || isReplyingPending}
                   >
-                    Send
+                    {isReplyingPending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "Send"
+                    )}
                   </Button>
                 </div>
               </div>

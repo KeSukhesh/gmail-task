@@ -8,24 +8,50 @@ export async function syncGmailEmails(userId: string) {
 
   console.log(`[SYNC] Starting Gmail sync for user: ${userId}`);
 
-  // Fetch the latest 100 emails (can adjust)
-  const { data } = await gmail.users.messages.list({
-    userId: "me",
-    maxResults: 100,
+  // Step 1: Fetch the user's current checkpoint
+  const checkpoint = await db.emailSyncCheckpoint.findUnique({
+    where: { userId },
   });
 
-  const messages = data.messages ?? [];
+  const lastInternalDate = checkpoint?.lastInternalDate;
+  console.log(`[SYNC] Last internal date checkpoint: ${lastInternalDate?.toISOString() ?? "None"}`);
+
+  // Step 2: Fetch messages from both INBOX and SENT
+  const fetchMessages = async (labelId: string) => {
+    const { data } = await gmail.users.messages.list({
+      userId: "me",
+      maxResults: 50,
+      labelIds: [labelId],
+      q: lastInternalDate
+        ? `after:${Math.floor(lastInternalDate.getTime() / 1000)}`
+        : undefined,
+    });
+    return data.messages ?? [];
+  };
+
+  const [inboxMessages, sentMessages] = await Promise.all([
+    fetchMessages("INBOX"),
+    fetchMessages("SENT"),
+  ]);
+
+  const messages = [...inboxMessages, ...sentMessages];
+  if (messages.length === 0) {
+    console.log("[SYNC] No new messages to sync.");
+    return;
+  }
+
+  let newestInternalDate: Date | undefined = undefined;
 
   for (const message of messages) {
     const messageId = message.id;
     if (!messageId) continue;
 
     try {
-      // Check if email already exists
+      // Check if already exists
       const exists = await db.email.findUnique({
         where: { id: messageId },
       });
-      if (exists) continue; // Skip if already synced
+      if (exists) continue;
 
       // Fetch full email
       const fullMessage = await gmail.users.messages.get({
@@ -36,22 +62,17 @@ export async function syncGmailEmails(userId: string) {
 
       if (!fullMessage.data.raw) continue;
 
-      // Decode base64url to base64
       const base64 = fullMessage.data.raw.replace(/-/g, '+').replace(/_/g, '/');
       const raw = Buffer.from(base64, 'base64');
-
-      // Parse email using mailparser
       const parsed = await simpleParser(raw);
 
-      // Upload HTML to S3 if exists
+      // Upload HTML to S3 if needed
       let htmlUrl: string | null = null;
       if (parsed.html) {
         try {
           htmlUrl = await uploadToS3(`emails/${messageId}.html`, parsed.html);
-          console.log(`[SYNC] Uploaded HTML for ${messageId} to ${htmlUrl}`);
         } catch (error) {
           console.error(`[SYNC] Failed to upload HTML for ${messageId}:`, error);
-          // Continue without HTML URL
         }
       }
 
@@ -73,10 +94,27 @@ export async function syncGmailEmails(userId: string) {
       });
 
       console.log(`[SYNC] Synced email ${messageId}`);
+
+      // Update newestInternalDate seen so far
+      const parsedDate = parsed.date;
+      if (parsedDate && (!newestInternalDate || parsedDate > newestInternalDate)) {
+        newestInternalDate = parsedDate;
+      }
     } catch (error) {
       console.error(`[SYNC] Failed syncing email ${messageId}`, error);
-      // continue to next email
+      // Continue
     }
+  }
+
+  // Step 3: Update checkpoint
+  if (newestInternalDate) {
+    await db.emailSyncCheckpoint.upsert({
+      where: { userId },
+      update: { lastInternalDate: newestInternalDate },
+      create: { userId, lastInternalDate: newestInternalDate },
+    });
+
+    console.log(`[SYNC] Updated sync checkpoint to ${newestInternalDate.toISOString()}`);
   }
 
   console.log(`[SYNC] Finished Gmail sync for user: ${userId}`);

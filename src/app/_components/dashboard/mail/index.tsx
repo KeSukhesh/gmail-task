@@ -51,6 +51,20 @@ export function Mail({
   const [tabValue, setTabValue] = React.useState("all");
   const { data: session } = useSession();
 
+  const { mutate: syncEmails, isPending: isSyncing } = api.gmail.syncEmails.useMutation({
+    onSuccess: () => {
+      console.log("Synced!");
+      void refetchMessages();
+    },
+    onError: (error) => {
+      console.error("Failed to sync emails:", error);
+    }
+  });
+
+  React.useEffect(() => {
+    syncEmails();
+  }, []);
+
   const getLabelId = (section: string): string => {
     switch (section) {
       case "INBOX":
@@ -75,8 +89,7 @@ export function Mail({
     ...(labelIds ? { labelIds } : {}),
     maxResults: 20,
   }, {
-    enabled: !!section,
-    refetchInterval: 30000
+    enabled: !!section
   });
 
   const { data: selectedMessageData, isLoading: isSelectedMessageLoading } = api.gmail.getMessage.useQuery(
@@ -93,6 +106,7 @@ export function Mail({
     html?: string | null;
     text?: string | null;
     htmlUrl?: string | null;
+    threadId?: string | null;
   }): Mail | null => {
     const getLabelName = (labelId: string): string => {
       const labelMap: Record<string, string> = {
@@ -133,6 +147,7 @@ export function Mail({
       labels: (message.labelIds ?? []).map(getLabelName),
       read: isRead,
       htmlUrl: message.htmlUrl ?? null,
+      threadId: message.threadId ?? null,
     };
   }, [selectedMailId]);
 
@@ -158,17 +173,6 @@ export function Mail({
     }
     return filteredAndTransformedMessages;
   }, [filteredAndTransformedMessages, tabValue]);
-
-  const { mutate: syncEmails, isPending: isSyncing } = api.gmail.syncEmails.useMutation({
-    onSuccess: () => {
-      console.log("Synced!");
-      // Refetch messages after sync
-      void refetchMessages();
-    },
-    onError: (error) => {
-      console.error("Failed to sync emails:", error);
-    }
-  });
 
   const { mutate: markAsRead } = api.gmail.markAsRead.useMutation({
     onSuccess: () => {

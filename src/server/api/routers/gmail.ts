@@ -221,122 +221,119 @@ export const gmailRouter = createTRPCRouter({
 
       return { success: true };
     }),
+
+  /**
+   * Delete an email from the database
+   */
+  deleteMessage: protectedProcedure
+    .input(
+      z.object({
+        messageId: z.string(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.session?.user) {
+        throw new TRPCError({ code: "UNAUTHORIZED" });
+      }
+
+      // Delete the email from the database
+      await ctx.db.email.delete({
+        where: {
+          id: input.messageId,
+          userId: ctx.session.user.id,
+        },
+      });
+
+      return { success: true };
+    }),
+
+  /**
+   * Reply to an email
+   */
+  replyMessage: protectedProcedure
+    .input(
+      z.object({
+        messageId: z.string(),
+        threadId: z.string(),
+        content: z.string().min(1, "Reply cannot be empty"),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.gmail) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "No Gmail client in context",
+        });
+      }
+
+      console.log("Starting reply process for message:", input.messageId);
+
+      try {
+        // Get the original message to get the subject and recipients
+        const originalMessage = await ctx.gmail.users.messages.get({
+          userId: "me",
+          id: input.messageId,
+          format: "metadata",
+          metadataHeaders: ["Subject", "From", "To", "Cc"],
+        });
+
+        console.log("Got original message:", originalMessage.data);
+
+        const headers = originalMessage.data.payload?.headers ?? [];
+        const subject = headers.find((h) => h.name === "Subject")?.value ?? "";
+        const from = headers.find((h) => h.name === "From")?.value ?? "";
+        const to = headers.find((h) => h.name === "To")?.value ?? "";
+        const cc = headers.find((h) => h.name === "Cc")?.value ?? "";
+
+        console.log("Extracted headers:", { subject, from, to, cc });
+
+        // Create the email content
+        const emailLines = [
+          `MIME-Version: 1.0`,
+          `Content-Type: text/plain; charset="UTF-8"`,
+          `Content-Transfer-Encoding: 7bit`,
+          `From: ${ctx.session.user.email}`,
+          `To: ${to}`,
+          ...(cc ? [`Cc: ${cc}`] : []),
+          `Subject: Re: ${subject}`,
+          `In-Reply-To: ${input.messageId}`,
+          `References: ${input.messageId}`,
+          `Thread-Index: ${Buffer.from(input.threadId).toString('base64')}`,
+          ``,
+          input.content,
+        ];
+
+        const email = emailLines.join("\r\n");
+        console.log("Generated email content:", email);
+
+        const encodedEmail = Buffer.from(email)
+          .toString("base64")
+          .replace(/\+/g, "-")
+          .replace(/\//g, "_")
+          .replace(/=+$/, "");
+
+        console.log("Sending reply to Gmail API...");
+        // Send the reply
+        const response = await ctx.gmail.users.messages.send({
+          userId: "me",
+          requestBody: {
+            raw: encodedEmail,
+            threadId: input.threadId,
+          },
+        });
+
+        console.log("Gmail API response:", response.data);
+
+        // Sync the new message to our database
+        await syncGmailEmails(ctx.session.user.id);
+
+        return response.data;
+      } catch (error) {
+        console.error("Failed to send reply:", error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to send reply",
+        });
+      }
+    }),
 });
-
-
-// import { z } from "zod";
-// import { TRPCError } from "@trpc/server";
-// import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
-
-// export const gmailRouter = createTRPCRouter({
-//   /**
-//    * List messages from **local database**, not live Gmail
-//    */
-//   listMessages: protectedProcedure
-//     .input(
-//       z.object({
-//         labelIds: z.array(z.string()).optional(),
-//         maxResults: z.number().min(1).max(50).optional(), // can now allow up to 50 since it's local
-//         query: z.string().optional(), // search subject/from
-//         pageToken: z.string().optional(), // not implemented yet unless you want real pagination
-//       }),
-//     )
-//     .query(async ({ ctx, input }) => {
-//       const { labelIds, maxResults = 20, query } = input;
-
-//       const emails = await ctx.db.email.findMany({
-//         where: {
-//           userId: ctx.session.user.id,
-//           ...(labelIds?.length
-//             ? {
-//                 labelIds: {
-//                   hasSome: labelIds,
-//                 },
-//               }
-//             : {}),
-//           ...(query
-//             ? {
-//                 OR: [
-//                   { subject: { contains: query, mode: "insensitive" } },
-//                   { from: { contains: query, mode: "insensitive" } },
-//                 ],
-//               }
-//             : {}),
-//         },
-//         orderBy: {
-//           internalDate: "desc",
-//         },
-//         take: maxResults,
-//       });
-
-//       return {
-//         messages: emails,
-//       };
-//     }),
-
-//   /**
-//    * Get full details of a specific message from **local database**
-//    */
-//   getMessage: protectedProcedure
-//     .input(
-//       z.object({
-//         messageId: z.string(),
-//       }),
-//     )
-//     .query(async ({ ctx, input }) => {
-//       const email = await ctx.db.email.findUnique({
-//         where: {
-//           id: input.messageId,
-//         },
-//       });
-
-//       if (!email) {
-//         throw new TRPCError({
-//           code: "NOT_FOUND",
-//           message: "Email not found",
-//         });
-//       }
-
-//       return email;
-//     }),
-
-//   /**
-//    * Send email (still uses Gmail live, because you can't send via local db)
-//    */
-//   sendMessage: protectedProcedure
-//     .input(
-//       z.object({
-//         raw: z.string(), // base64url encoded RFC822 email
-//       }),
-//     )
-//     .mutation(async ({ ctx, input }) => {
-//       if (!ctx.gmail)
-//         throw new TRPCError({
-//           code: "UNAUTHORIZED",
-//           message: "No Gmail client in context",
-//         });
-
-//       const res = await ctx.gmail.users.messages.send({
-//         userId: "me",
-//         requestBody: {
-//           raw: input.raw,
-//         },
-//       });
-
-//       return res.data;
-//     }),
-
-//   /**
-//    * List labels (still uses live Gmail for now — optional later to sync)
-//    */
-//   listLabels: protectedProcedure.query(async ({ ctx }) => {
-//     if (!ctx.gmail)
-//       throw new TRPCError({
-//           code: "UNAUTHORIZED",
-//           message: "No Gmail client in context",
-//       });
-
-//     const res = await ctx.gmail.users.labels.list({ userId: "me" });
-//     return res.data.labels ?? [];
-//   }),
-// });
