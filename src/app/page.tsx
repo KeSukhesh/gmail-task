@@ -11,6 +11,7 @@ export default async function Home() {
     redirect("/login");
   }
 
+  // will be prefetching once we have proper backend sync func setup
   // void api.post.getLatest.prefetch();
 
   return (

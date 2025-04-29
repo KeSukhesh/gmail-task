@@ -20,7 +20,7 @@ import {
 import { TooltipProvider } from "../../../../components/ui/tooltip";
 import { MailDisplay } from "./mail-display";
 import { MailList } from "./mail-list";
-import type { Mail, MessagePart, GmailMessage } from "./types";
+import type { Mail, MessagePart } from "./types";
 import { useMail } from "./mail-context";
 import type { Section } from "../wrapper/dashboardWrapper";
 import Image from "next/image";
@@ -49,86 +49,99 @@ export function Mail({
 
   const getLabelId = (section: string): string => {
     switch (section) {
-      case "inbox":
+      case "INBOX":
         return "INBOX";
-      case "sent":
+      case "SENT":
         return "SENT";
-      case "drafts":
+      case "STARRED":
+        return "STARRED";
+      case "DRAFT":
         return "DRAFT";
-      case "trash":
-        return "TRASH";
-      case "spam":
+      case "SPAM":
         return "SPAM";
+      case "TRASH":
+        return "TRASH";
       default:
         return "INBOX";
     }
   };
 
   const labelIds = section === "ALL_MAIL" ? undefined : [getLabelId(section)];
-  const { data: messages, isLoading } = api.gmail.listMessages.useQuery({
+  const { data: messages, isLoading: isMessagesLoading } = api.gmail.listMessages.useQuery({
     ...(labelIds ? { labelIds } : {}),
     maxResults: 20,
-    query: searchQuery || undefined,
+  }, {
+    enabled: !!section,
+    refetchInterval: 30000
   });
 
-  const { data: selectedMessage, isLoading: isMessageLoading } = api.gmail.getMessage.useQuery(
+  const { data: selectedMessageData, isLoading: isSelectedMessageLoading } = api.gmail.getMessage.useQuery(
     selectedMailId ? { messageId: selectedMailId, format: "full" } : skipToken,
     { enabled: !!selectedMailId }
   );
 
-  const transformPayload = (payload: MessagePart | null | undefined): MessagePart | null => {
-    if (!payload) return null;
-    return {
-      headers: payload.headers?.map(h => ({
-        name: h.name,
-        value: h.value
-      })),
-      body: payload.body,
-      parts: payload.parts?.map(p => transformPayload(p)).filter((p): p is MessagePart => p !== null)
+  const transformMessage = React.useCallback((message: {
+    id?: string | null;
+    snippet?: string | null;
+    internalDate?: string | null;
+    payload?: MessagePart;
+    labelIds?: string[] | null;
+  }): Mail | null => {
+    const getLabelName = (labelId: string): string => {
+      const labelMap: Record<string, string> = {
+        "INBOX": "Inbox",
+        "SENT": "Sent",
+        "DRAFT": "Draft",
+        "SPAM": "Spam",
+        "TRASH": "Trash",
+        "STARRED": "Starred",
+        "IMPORTANT": "Important",
+        "UNREAD": "Unread",
+      };
+      return labelMap[labelId] ?? labelId;
     };
-  };
 
-  const mails: Mail[] = messages?.messages?.map((message: GmailMessage) => {
-    const payload = transformPayload(message.payload);
-    const headers = payload?.headers ?? [];
-    const subject = headers.find((h) => h.name === "Subject")?.value ?? "";
+    if (!message.id || !message.payload) return null;
+    const headers = message.payload.headers ?? [];
     const from = headers.find((h) => h.name === "From")?.value ?? "";
-    const name = from?.split("<")[0]?.trim() ?? from ?? "";
-    const emailMatch = /<(.+)>/.exec(from ?? "");
-    const email = emailMatch?.[1] ?? from ?? "";
+    const name = from.split("<")[0]?.trim() ?? from;
+    const emailMatch = /<([^>]+)>/.exec(from);
+    const email = emailMatch?.[1] ?? from;
 
     return {
-      id: message.id ?? "",
+      id: message.id,
       name,
       email,
-      subject,
+      subject: headers.find((h) => h.name === "Subject")?.value ?? "",
       text: message.snippet ?? "",
-      date: message.internalDate ?? "",
+      date: message.internalDate ? new Date(Number(message.internalDate)).toLocaleDateString() : "",
       snippet: message.snippet ?? "",
       internalDate: message.internalDate ?? "",
       from,
-      payload: payload ?? null,
+      payload: message.payload,
       labelIds: message.labelIds ?? [],
-      labels: message.labelIds ?? [],
+      labels: (message.labelIds ?? []).map(getLabelName),
       read: !message.labelIds?.includes("UNREAD"),
     };
-  }) ?? [];
+  }, []);
 
-  const selectedMail = selectedMessage ? {
-    id: selectedMessage.id ?? "",
-    name: (selectedMessage.payload?.headers?.find(h => h.name === "From")?.value?.split("<")[0]?.trim() ?? selectedMessage.payload?.headers?.find(h => h.name === "From")?.value) ?? "",
-    email: (selectedMessage.payload?.headers?.find(h => h.name === "From")?.value?.match(/<(.+)>/)?.[1] ?? selectedMessage.payload?.headers?.find(h => h.name === "From")?.value) ?? "",
-    subject: selectedMessage.payload?.headers?.find(h => h.name === "Subject")?.value ?? "",
-    text: selectedMessage.snippet ?? "",
-    date: selectedMessage.internalDate ?? "",
-    snippet: selectedMessage.snippet ?? "",
-    internalDate: selectedMessage.internalDate ?? "",
-    from: selectedMessage.payload?.headers?.find(h => h.name === "From")?.value ?? "",
-    payload: transformPayload(selectedMessage.payload) ?? null,
-    labelIds: selectedMessage.labelIds ?? [],
-    labels: selectedMessage.labelIds ?? [],
-    read: !selectedMessage.labelIds?.includes("UNREAD"),
-  } : null;
+  const filteredAndTransformedMessages = React.useMemo(() => {
+    return (messages?.messages ?? [])
+      .filter((message) => {
+        if (!message.payload) return false;
+        const headers = message.payload.headers ?? [];
+        const subject = headers.find((h) => h.name === "Subject")?.value ?? "";
+        const from = headers.find((h) => h.name === "From")?.value ?? "";
+        return (
+          subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          from.toLowerCase().includes(searchQuery.toLowerCase())
+        );
+      })
+      .map(transformMessage)
+      .filter((message): message is Mail => message !== null);
+  }, [messages, searchQuery, transformMessage]);
+
+  const selectedMessage = selectedMessageData ? transformMessage(selectedMessageData) : null;
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -314,10 +327,16 @@ export function Mail({
                   </form>
                 </div>
                 <TabsContent value="all" className="m-0">
-                  <MailList items={mails} isLoading={isLoading} />
+                  <MailList
+                    items={filteredAndTransformedMessages}
+                    isLoading={isMessagesLoading}
+                  />
                 </TabsContent>
                 <TabsContent value="unread" className="m-0">
-                  <MailList items={mails.filter((item) => !item.read)} isLoading={isLoading} />
+                  <MailList
+                    items={filteredAndTransformedMessages.filter((item) => !item.read)}
+                    isLoading={isMessagesLoading}
+                  />
                 </TabsContent>
               </Tabs>
             </div>
@@ -330,7 +349,10 @@ export function Mail({
               <h1 className="text-xl font-bold">Message</h1>
             </div>
             <div className="flex-1 overflow-auto">
-              <MailDisplay mail={selectedMail} isLoading={isMessageLoading} />
+              <MailDisplay
+                mail={selectedMessage}
+                isLoading={isSelectedMessageLoading}
+              />
             </div>
           </div>
         </ResizablePanel>

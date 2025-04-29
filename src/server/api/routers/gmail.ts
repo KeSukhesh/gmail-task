@@ -52,6 +52,7 @@ export const gmailRouter = createTRPCRouter({
             snippet: msgRes.data.snippet,
             internalDate: msgRes.data.internalDate,
             payload: msgRes.data.payload,
+            labelIds: msgRes.data.labelIds,
             // You can include subject/from directly for speed
             subject:
               msgRes.data.payload?.headers?.find((h) => h.name === "Subject")
