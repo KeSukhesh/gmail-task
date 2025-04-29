@@ -43,11 +43,19 @@ interface MailDisplayProps {
 }
 
 export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
+  if (isLoading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   const today = new Date();
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center p-2">
+      <div className="flex items-center p-2 h-[55]">
         <div className="flex items-center gap-2">
           <Tooltip>
             <TooltipTrigger asChild>
@@ -165,11 +173,7 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
         </DropdownMenu>
       </div>
       <Separator />
-      {isLoading ? (
-        <div className="flex h-full items-start justify-center pt-8">
-          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-        </div>
-      ) : mail ? (
+      {mail ? (
         <div className="flex flex-1 flex-col">
           <div className="flex items-start p-4">
             <div className="flex items-start gap-4 text-sm">
