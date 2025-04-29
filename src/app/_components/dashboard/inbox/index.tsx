@@ -7,13 +7,16 @@ import { EmailView } from "../view/EmailView";
 import type { GmailMessage } from "../view/EmailView";
 
 export default function EmailList({ label }: { label: string }) {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  console.log(label);
+
   const labelIds = label === "ALL_MAIL" ? undefined : [label];
   const { data, isLoading } = api.gmail.listMessages.useQuery({
     ...(labelIds ? { labelIds } : {}),
     maxResults: 20,
+    query: searchQuery || undefined,
   });
-
-  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   function useMessageQuery(id: string | null) {
     const query = api.gmail.getMessage.useQuery(
@@ -43,6 +46,8 @@ export default function EmailList({ label }: { label: string }) {
       onSelect={setSelectedId}
       loading={isLoading}
       useMessageQuery={useMessageQuery}
+      onSearch={setSearchQuery}
+      searchQuery={searchQuery}
     />
   );
 }

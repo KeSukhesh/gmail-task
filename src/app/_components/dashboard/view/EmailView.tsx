@@ -1,5 +1,7 @@
 "use client";
 
+import { EmailCard } from "./EmailCard";
+
 export interface GmailHeader {
   name: string;
   value: string;
@@ -31,6 +33,8 @@ interface EmailViewProps {
     data?: GmailMessage;
     isLoading: boolean;
   };
+  onSearch?: (query: string) => void;
+  searchQuery?: string;
 }
 
 export function EmailView({
@@ -39,6 +43,8 @@ export function EmailView({
   onSelect,
   loading = false,
   useMessageQuery,
+  onSearch,
+  searchQuery = "",
 }: EmailViewProps) {
   const { data: selectedEmail, isLoading: loadingDetails } =
     useMessageQuery(selectedId);
@@ -48,27 +54,25 @@ export function EmailView({
   return (
     <div className="flex h-full">
       <div className="w-96 overflow-y-auto border-r">
-        {emails.map((email) => (
-          <div
-            key={email.id}
-            className={`flex h-25 cursor-pointer flex-col border-b px-4 py-2 hover:bg-gray-100 ${
-              selectedId === email.id ? "bg-gray-100" : ""
-            }`}
-            onClick={() => onSelect(email.id)}
-          >
-            <div className="mb-1 text-xs text-gray-500">
-              {email.internalDate
-                ? new Date(Number(email.internalDate)).toLocaleString()
-                : ""}
-            </div>
-            <div className="mb-1 truncate font-semibold">
-              {email.subject ?? "(No subject)"}
-            </div>
-            <div className="line-clamp-2 text-sm text-gray-600">
-              {email.snippet ?? "No snippet available"}
-            </div>
-          </div>
-        ))}
+        <div className="sticky top-0 z-10 bg-white p-4 border-b">
+          <input
+            type="text"
+            placeholder="Search emails..."
+            value={searchQuery}
+            onChange={(e) => onSearch?.(e.target.value)}
+            className="w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+          />
+        </div>
+        <div className="flex flex-col gap-2 p-4">
+          {emails.map((email) => (
+            <EmailCard
+              key={email.id}
+              email={email}
+              isSelected={selectedId === email.id}
+              onClick={() => onSelect(email.id)}
+            />
+          ))}
+        </div>
       </div>
       <div className="flex-1 overflow-auto p-6">
         {selectedId ? (

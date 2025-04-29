@@ -39,7 +39,7 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
     googleClient = new google.auth.OAuth2(
       process.env.GOOGLE_CLIENT_ID,
       process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI, // must match what you use in Google Cloud
+      process.env.GOOGLE_REDIRECT_URI, // has to be same as google cloud
     );
     googleClient.setCredentials({
       access_token: session.user.accessToken,
@@ -52,8 +52,8 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
   return {
     db,
     session,
-    googleClient, // <- now on context!
-    gmail, // <- now on context!
+    googleClient,
+    gmail,
     ...opts,
   };
 };

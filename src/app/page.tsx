@@ -11,7 +11,7 @@ export default async function Home() {
     redirect("/login");
   }
 
-  void api.post.getLatest.prefetch();
+  // void api.post.getLatest.prefetch();
 
   return (
     <SessionProvider session={session}>

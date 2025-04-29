@@ -39,18 +39,12 @@ export default function Sidebar({
 
   return (
     <aside
-      className={`flex h-screen flex-col border-r border-b border-gray-200 bg-white shadow-lg transition-all duration-300 ease-in-out dark:border-gray-700 dark:bg-black ${
+      className={`flex h-screen flex-col border-r border-b border-gray-200 bg-white dark:border-gray-700 dark:bg-black ${
         isCollapsed ? "w-14" : "w-56"
       }`}
-      onMouseEnter={() => {
-        setCollapsed(false);
-      }}
-      onMouseLeave={() => {
-        setCollapsed(true);
-      }}
     >
       {/* Header */}
-      <div className="flex items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700">
+      <div className="flex h-14 items-center justify-between border-b border-gray-200 px-4 dark:border-gray-700">
         <div className="flex items-center gap-2">
           <Image
             src="/lyra-logo.png"
@@ -87,7 +81,7 @@ export default function Sidebar({
       </div>
 
       {/* Email Sections */}
-      <div className="flex flex-col p-2">
+      <div className="flex flex-1 flex-col overflow-y-auto p-2">
         {!isCollapsed && (
           <h3 className="mb-2 px-2 text-xs font-medium text-gray-500 dark:text-gray-400">
             Emails
@@ -184,7 +178,7 @@ export default function Sidebar({
       </div>
 
       {/* User Profile Section */}
-      <div className="mt-auto border-t border-gray-200 dark:border-gray-700">
+      <div className="border-t border-gray-200 dark:border-gray-700">
         {/* Profile */}
         <div
           className={`flex items-center ${isCollapsed ? "justify-center" : "gap-2"} p-3`}
