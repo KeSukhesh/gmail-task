@@ -25,6 +25,7 @@ import { useMail } from "./mail-context";
 import type { Section } from "../wrapper/dashboardWrapper";
 import Image from "next/image";
 import { Button } from "../../../../components/ui/button";
+import { signOut, useSession } from "next-auth/react";
 
 interface MailProps {
   defaultLayout?: number[];
@@ -47,6 +48,7 @@ export function Mail({
 }: MailProps) {
   const [isCollapsed, setIsCollapsed] = React.useState(defaultCollapsed);
   const [selectedMailId] = useMail();
+  const { data: session } = useSession();
 
   const getLabelId = (section: string): string => {
     switch (section) {
@@ -300,6 +302,49 @@ export function Mail({
                   </text>
                 </svg>
                 {!isCollapsed && <span className="text-sm">All Mail</span>}
+              </button>
+            </div>
+
+            {/* User Profile Section */}
+            <div className="mt-auto border-t border-gray-200 dark:border-gray-700">
+              {/* Profile */}
+              <div
+                className={`flex items-center ${isCollapsed ? "justify-center" : "gap-2"} p-3`}
+              >
+                {session?.user?.image && (
+                  <Image
+                    src={session.user.image}
+                    alt="Profile"
+                    width={32}
+                    height={32}
+                    className="rounded-full"
+                  />
+                )}
+                {!isCollapsed && (
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium">{session?.user?.name}</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      {session?.user?.email}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Sign Out Button */}
+              <button
+                onClick={() => void signOut()}
+                className={`flex items-center ${isCollapsed ? "justify-center" : "gap-2"} w-full rounded p-2 hover:bg-gray-100 dark:hover:bg-gray-800`}
+              >
+                <svg width="14" height="14" fill="none" viewBox="0 0 24 24">
+                  <path
+                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                    stroke="#5C5E63"
+                    strokeWidth="1.1"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                {!isCollapsed && <span className="text-sm">Sign out</span>}
               </button>
             </div>
           </div>

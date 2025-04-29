@@ -1,7 +1,6 @@
 import { db } from "~/server/db";
 import { gmailClient } from "~/server/gmail/client";
 import { simpleParser } from "mailparser";
-import type { ParsedMail } from "mailparser";
 import { uploadToS3 } from "~/server/s3";
 
 export async function syncGmailEmails(userId: string) {
