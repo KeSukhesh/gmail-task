@@ -24,6 +24,8 @@ export async function gmailClient(userId: string) {
     refresh_token: account.refresh_token,
     expiry_date: account.expires_at ? account.expires_at * 1000 : undefined,
   });
+  console.log("access", account.access_token);
+  console.log("refresh", account.refresh_token);
 
   oauth2Client.on("tokens", (tokens) => {
     void (async () => {

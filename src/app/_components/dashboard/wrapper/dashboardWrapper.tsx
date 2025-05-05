@@ -8,6 +8,7 @@ export type Section = "INBOX" | "STARRED" | "SENT" | "ALL_MAIL";
 
 export default function DashboardShell() {
   const [section, setSection] = useState<Section>("INBOX");
+  const [searchQuery, setSearchQuery] = useState("");
 
   return (
     <MailProvider>
@@ -19,7 +20,8 @@ export default function DashboardShell() {
           currentSection={section}
           setSection={setSection}
           section={section}
-          searchQuery=""
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
         />
       </div>
     </MailProvider>

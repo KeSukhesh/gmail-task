@@ -10,10 +10,10 @@ import {
   Reply,
   ReplyAll,
   Trash2,
+  Paperclip,
+  Download,
 } from "lucide-react";
 import { Loader2 } from "lucide-react";
-import { useRouter } from "next/navigation";
-
 import { Button } from "../../../../components/ui/button";
 import { Calendar } from "../../../../components/ui/calendar";
 import {
@@ -22,14 +22,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../../../../components/ui/dropdown-menu";
-import { Label } from "../../../../components/ui/label";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "../../../../components/ui/popover";
 import { Separator } from "../../../../components/ui/separator";
-import { Switch } from "../../../../components/ui/switch";
 import { Textarea } from "../../../../components/ui/textarea";
 import {
   Tooltip,
@@ -51,7 +49,7 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
   const [htmlContent, setHtmlContent] = useState<string | null>(null);
   const [isLoadingHtml, setIsLoadingHtml] = useState(false);
   const [replyContent, setReplyContent] = useState("");
-  const [isReplying, setIsReplying] = useState(false);
+  // const [isReplying, setIsReplying] = useState(false);
   const [, setSelectedMailId] = useMail();
   const utils = api.useUtils();
 
@@ -103,7 +101,7 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
       console.error("Failed to send reply:", error);
     },
   });
-
+  
   useEffect(() => {
     if (mail?.htmlUrl) {
       setIsLoadingHtml(true);
@@ -128,7 +126,7 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
   const processHtmlContent = (html: string): string => {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
-
+    
     // Handle images
     const images = doc.getElementsByTagName('img');
     for (const img of Array.from(images)) {
@@ -138,17 +136,22 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
         if (src.startsWith('data:')) {
           continue;
         }
-        
+
         // Handle relative URLs
         if (src.startsWith('/')) {
           img.setAttribute('src', `https://mail.google.com${src}`);
         }
-        
+
         // Handle cid: URLs (inline attachments)
         if (src.startsWith('cid:')) {
           const cid = src.replace('cid:', '');
-          // We could fetch the attachment here if needed
-          img.setAttribute('src', `data:image/png;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7`); // 1x1 transparent pixel as fallback
+          // Find matching attachment
+          const attachment = mail?.attachments.find(a => a.cid === cid);
+          if (attachment) {
+            img.setAttribute('src', attachment.url);
+          } else {
+            img.setAttribute('src', `data:image/png;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7`); // 1x1 transparent pixel as fallback
+          }
         }
 
         // Add loading and error handling
@@ -160,6 +163,16 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
     return doc.documentElement.outerHTML;
   };
 
+  // Function to format file size
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  console.log("starting", processHtmlContent(mail?.htmlUrl ?? ""));
   const getInitials = (name: string): string => {
     // Remove quotes and trim whitespace
     const cleanName = name.replace(/["']/g, '').trim();
@@ -178,12 +191,12 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
   const handleReply = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log("Form submitted, reply content:", replyContent);
-    
+
     if (!mail || !replyContent.trim()) {
       console.log("No mail selected or empty reply content");
       return;
     }
-    
+
     console.log("Sending reply for message:", mail.id);
     replyMessage({
       messageId: mail.id,
@@ -359,6 +372,39 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
               />
             ) : (
               mail.text
+            )}
+
+            {/* Attachments section */}
+            {mail.attachments && mail.attachments.length > 0 && (
+              <div className="mt-4 border-t pt-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                  <Paperclip className="h-4 w-4" />
+                  Attachments ({mail.attachments.length})
+                </div>
+                <div className="mt-2 grid gap-2">
+                  {mail.attachments.map((attachment) => (
+                    <div
+                      key={attachment.id}
+                      className="flex items-center justify-between rounded-lg border p-2"
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="text-sm font-medium">{attachment.filename}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {formatFileSize(attachment.size)}
+                        </div>
+                      </div>
+                      <a
+                        href={attachment.url}
+                        download={attachment.filename}
+                        className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800"
+                      >
+                        <Download className="h-4 w-4" />
+                        Download
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
           <Separator className="mt-auto" />

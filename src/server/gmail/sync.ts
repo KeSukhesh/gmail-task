@@ -52,7 +52,6 @@ export async function syncGmailEmails(userId: string) {
         where: { id: messageId },
       });
       if (exists) continue;
-
       // Fetch full email
       const fullMessage = await gmail.users.messages.get({
         userId: "me",
@@ -61,11 +60,10 @@ export async function syncGmailEmails(userId: string) {
       });
 
       if (!fullMessage.data.raw) continue;
-
       const base64 = fullMessage.data.raw.replace(/-/g, '+').replace(/_/g, '/');
       const raw = Buffer.from(base64, 'base64');
       const parsed = await simpleParser(raw);
-
+      console.log("parsed", parsed);
       // Upload HTML to S3 if needed
       let htmlUrl: string | null = null;
       if (parsed.html) {
@@ -75,8 +73,37 @@ export async function syncGmailEmails(userId: string) {
           console.error(`[SYNC] Failed to upload HTML for ${messageId}:`, error);
         }
       }
+      const parser = await simpleParser(raw);
+      const attachments = parser.attachments;
+      console.log(attachments);
 
-      // Save email to DB
+      // Upload attachments to S3 and create attachment records
+      const attachmentRecords = await Promise.all(
+        attachments.map(async (attachment) => {
+          if (!attachment.content || !attachment.filename) return null;
+          
+          try {
+            const url = await uploadToS3(
+              `attachments/${messageId}/${attachment.filename}`,
+              attachment.content.toString('base64')
+            );
+            
+            return {
+              id: `${messageId}-${attachment.filename}`,
+              filename: attachment.filename,
+              contentType: attachment.contentType,
+              size: attachment.size,
+              url,
+              cid: attachment.cid,
+            };
+          } catch (error) {
+            console.error(`[SYNC] Failed to upload attachment ${attachment.filename}:`, error);
+            return null;
+          }
+        })
+      );
+
+      // Save email to DB with attachments
       await db.email.create({
         data: {
           id: messageId,
@@ -90,6 +117,9 @@ export async function syncGmailEmails(userId: string) {
           threadId: fullMessage.data.threadId ?? null,
           htmlUrl,
           text: parsed.text ?? null,
+          attachments: {
+            create: attachmentRecords.filter((record): record is NonNullable<typeof record> => record !== null)
+          }
         },
       });
 

@@ -13,7 +13,6 @@ import {
 } from "../../../../components/ui/resizable";
 import {
   Tabs,
-  TabsContent,
   TabsList,
   TabsTrigger,
 } from "../../../../components/ui/tabs";
@@ -26,6 +25,7 @@ import type { Section } from "../wrapper/dashboardWrapper";
 import Image from "next/image";
 import { Button } from "../../../../components/ui/button";
 import { signOut, useSession } from "next-auth/react";
+import { useDebounce } from "~/hooks/useDebounce";
 
 interface MailProps {
   defaultLayout?: number[];
@@ -35,6 +35,7 @@ interface MailProps {
   setSection: (section: Section) => void;
   section: string;
   searchQuery: string;
+  setSearchQuery: (query: string) => void;
 }
 
 export function Mail({
@@ -45,25 +46,32 @@ export function Mail({
   setSection,
   section,
   searchQuery,
+  setSearchQuery,
 }: MailProps) {
   const [isCollapsed, setIsCollapsed] = React.useState(defaultCollapsed);
   const [selectedMailId, setSelectedMailId] = useMail();
   const [tabValue, setTabValue] = React.useState("all");
   const { data: session } = useSession();
+  const [localSearchQuery, setLocalSearchQuery] = React.useState(searchQuery);
+  const debouncedSearchQuery = useDebounce(localSearchQuery, 300);
 
   const { mutate: syncEmails, isPending: isSyncing } = api.gmail.syncEmails.useMutation({
     onSuccess: () => {
-      console.log("Synced!");
+      console.log("[SYNC] Synced!");
       void refetchMessages();
     },
     onError: (error) => {
-      console.error("Failed to sync emails:", error);
+      console.error("[SYNC] Failed to sync emails:", error);
     }
   });
 
   React.useEffect(() => {
     syncEmails();
-  }, []);
+  }, [syncEmails]);
+
+  React.useEffect(() => {
+    setSearchQuery(debouncedSearchQuery);
+  }, [debouncedSearchQuery, setSearchQuery]);
 
   const getLabelId = (section: string): string => {
     switch (section) {
@@ -88,6 +96,7 @@ export function Mail({
   const { data: messages, isLoading: isMessagesLoading, refetch: refetchMessages } = api.gmail.listMessages.useQuery({
     ...(labelIds ? { labelIds } : {}),
     maxResults: 20,
+    query: searchQuery || undefined,
   }, {
     enabled: !!section
   });
@@ -107,6 +116,14 @@ export function Mail({
     text?: string | null;
     htmlUrl?: string | null;
     threadId?: string | null;
+    attachments?: Array<{
+      id: string;
+      filename: string;
+      contentType: string;
+      size: number;
+      url: string;
+      cid: string | null;
+    }>;
   }): Mail | null => {
     const getLabelName = (labelId: string): string => {
       const labelMap: Record<string, string> = {
@@ -148,24 +165,15 @@ export function Mail({
       read: isRead,
       htmlUrl: message.htmlUrl ?? null,
       threadId: message.threadId ?? null,
+      attachments: message.attachments ?? [],
     };
   }, [selectedMailId]);
 
   const filteredAndTransformedMessages = React.useMemo(() => {
     return (messages?.messages ?? [])
-      .filter((message) => {
-        if (!message.payload) return false;
-        const headers = message.payload.headers ?? [];
-        const subject = headers.find((h) => h.name === "Subject")?.value ?? "";
-        const from = headers.find((h) => h.name === "From")?.value ?? "";
-        return (
-          subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          from.toLowerCase().includes(searchQuery.toLowerCase())
-        );
-      })
       .map(transformMessage)
       .filter((message): message is Mail => message !== null);
-  }, [messages, searchQuery, transformMessage]);
+  }, [messages, transformMessage]);
 
   const filteredMessagesByTab = React.useMemo(() => {
     if (tabValue === "unread") {
@@ -186,7 +194,8 @@ export function Mail({
   }, [setSelectedMailId, markAsRead]);
 
   const selectedMessage = selectedMessageData ? transformMessage(selectedMessageData) : null;
-
+  console.log("selected message formatted", selectedMessage);
+  console.log("raw message data", selectedMessageData);
   return (
     <TooltipProvider delayDuration={0}>
       <ResizablePanelGroup
@@ -194,7 +203,7 @@ export function Mail({
         onLayout={(sizes: number[]) => {
           document.cookie = `react-resizable-panels:layout:mail=${JSON.stringify(sizes)}`;
         }}
-        className="h-screen"
+        className="h-full"
       >
         <ResizablePanel
           defaultSize={defaultLayout[0]}
@@ -231,7 +240,7 @@ export function Mail({
               </div>
             </div>
 
-            <div className="flex flex-1 flex-col overflow-y-auto p-3">
+            <div className="flex flex-1 flex-col overflow-y-hidden p-3">
               {!isCollapsed && (
                 <h3 className="mb-3 px-2 text-xs font-medium text-gray-500 dark:text-gray-400">
                   Emails
@@ -409,12 +418,18 @@ export function Mail({
                 </TabsList>
               </Tabs>
             </div>
-            <div className="flex-1 overflow-auto bg-[#F9FAFB]">
+            <div className="flex-1 overflow-y-auto bg-[#F9FAFB]">
               <div className="bg-[#F9FAFB] p-4 backdrop-blur">
-                <form>
+                <form onSubmit={(e) => e.preventDefault()}>
                   <div className="relative">
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input placeholder="Search" className="pl-8" />
+                    <Input 
+                      name="search"
+                      placeholder="Search emails..." 
+                      className="pl-8"
+                      value={localSearchQuery}
+                      onChange={(e) => setLocalSearchQuery(e.target.value)}
+                    />
                   </div>
                 </form>
               </div>
@@ -429,7 +444,7 @@ export function Mail({
         <ResizableHandle withHandle />
         <ResizablePanel defaultSize={defaultLayout[2]} minSize={30}>
           <div className="flex h-full flex-col">
-            <div className="flex-1 overflow-auto">
+            <div className="flex-1 overflow-hidden">
               <MailDisplay
                 mail={selectedMessage}
                 isLoading={isSelectedMessageLoading}

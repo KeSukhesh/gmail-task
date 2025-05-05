@@ -23,6 +23,15 @@ export interface GmailMessage {
   text?: string | null;
 }
 
+export interface Attachment {
+  id: string;
+  filename: string;
+  contentType: string;
+  size: number;
+  url: string;
+  cid: string | null;
+}
+
 export interface Mail {
   id: string;
   name: string;
@@ -39,6 +48,7 @@ export interface Mail {
   read: boolean;
   htmlUrl: string | null;
   threadId: string | null;
+  attachments: Attachment[];
 }
 
 export interface MailState {

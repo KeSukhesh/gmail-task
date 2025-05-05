@@ -76,6 +76,7 @@ model Email {
   isRead       Boolean   @default(false)
   htmlUrl      String?   // S3 URL to full HTML content
   text         String?   // Full text content
+  attachments  Attachment[] // Relation to attachments
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -92,4 +93,17 @@ model EmailSyncCheckpoint {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+model Attachment {
+  id          String   @id @default(cuid())
+  emailId     String   // Foreign key to Email
+  filename    String
+  contentType String
+  size        Int
+  url         String   // S3 URL to attachment
+  cid         String?  // Content-ID for inline attachments
+  email       Email    @relation(fields: [emailId], references: [id], onDelete: Cascade)
+
+  @@index([emailId])
 }

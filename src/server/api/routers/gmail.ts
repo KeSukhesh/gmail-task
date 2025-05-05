@@ -2,6 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { syncGmailEmails } from "~/server/gmail/sync";
+import type { Attachment } from "~/app/_components/dashboard/mail/types";
 
 export const gmailRouter = createTRPCRouter({
   /**
@@ -38,9 +39,14 @@ export const gmailRouter = createTRPCRouter({
                 OR: [
                   { subject: { contains: query, mode: "insensitive" } },
                   { from: { contains: query, mode: "insensitive" } },
+                  { text: { contains: query, mode: "insensitive" } },
+                  { snippet: { contains: query, mode: "insensitive" } },
                 ],
               }
             : {}),
+        },
+        include: {
+          attachments: true,
         },
         orderBy: {
           internalDate: "desc",
@@ -65,6 +71,7 @@ export const gmailRouter = createTRPCRouter({
         from: email.from ?? "",
         htmlUrl: email.htmlUrl,
         text: email.text,
+        attachments: email.attachments as Attachment[],
       }));
 
       return {
@@ -94,6 +101,9 @@ export const gmailRouter = createTRPCRouter({
           id: input.messageId,
           userId: ctx.session.user.id,
         },
+        include: {
+          attachments: true,
+        },
       });
 
       if (!email) {
@@ -114,6 +124,7 @@ export const gmailRouter = createTRPCRouter({
         labelIds: email.labelIds,
         htmlUrl: email.htmlUrl,
         text: email.text,
+        attachments: email.attachments as Attachment[],
       };
     }),
 

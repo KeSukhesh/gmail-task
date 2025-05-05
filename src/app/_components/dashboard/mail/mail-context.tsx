@@ -25,4 +25,4 @@ export function useMail() {
     throw new Error("useMail must be used within a MailProvider");
   }
   return [context.selected, context.setMail] as const;
-} 
+}
