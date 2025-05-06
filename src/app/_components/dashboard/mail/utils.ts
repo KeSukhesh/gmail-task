@@ -14,4 +14,4 @@ export function safeFormatDistance(date: string | Date): string {
   } catch {
     return "";
   }
-} 
+}

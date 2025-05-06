@@ -129,30 +129,30 @@ export const gmailRouter = createTRPCRouter({
     }),
 
   /**
-   * Send an email (still needs Gmail API)
+   * Send an email (WiP)
    */
-  sendMessage: protectedProcedure
-    .input(
-      z.object({
-        raw: z.string(), // base64url encoded RFC822 email
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      if (!ctx.gmail)
-        throw new TRPCError({
-          code: "UNAUTHORIZED",
-          message: "No Gmail client in context",
-        });
+  // sendMessage: protectedProcedure
+  //   .input(
+  //     z.object({
+  //       raw: z.string(), // base64url encoded RFC822 email
+  //     }),
+  //   )
+  //   .mutation(async ({ ctx, input }) => {
+  //     if (!ctx.gmail)
+  //       throw new TRPCError({
+  //         code: "UNAUTHORIZED",
+  //         message: "No Gmail client in context",
+  //       });
 
-      const res = await ctx.gmail.users.messages.send({
-        userId: "me",
-        requestBody: {
-          raw: input.raw,
-        },
-      });
+  //     const res = await ctx.gmail.users.messages.send({
+  //       userId: "me",
+  //       requestBody: {
+  //         raw: input.raw,
+  //       },
+  //     });
 
-      return res.data;
-    }),
+  //     return res.data;
+  //   }),
 
   /**
    * List labels (still needs Gmail API)
@@ -181,7 +181,7 @@ export const gmailRouter = createTRPCRouter({
   }),
 
   /**
-   * Mark an email as read
+   * Mark an email as read (TODO: fix)
    */
   markAsRead: protectedProcedure
     .input(
@@ -190,7 +190,6 @@ export const gmailRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      // Get current email to update labelIds
       const currentEmail = await ctx.db.email.findUnique({
         where: {
           id: input.messageId,
@@ -202,7 +201,6 @@ export const gmailRouter = createTRPCRouter({
         throw new TRPCError({ code: "NOT_FOUND" });
       }
 
-      // Update in database
       await ctx.db.email.update({
         where: {
           id: input.messageId,
@@ -214,7 +212,6 @@ export const gmailRouter = createTRPCRouter({
         },
       });
 
-      // Update in Gmail if we have access
       if (ctx.gmail) {
         try {
           await ctx.gmail.users.messages.modify({
@@ -226,7 +223,6 @@ export const gmailRouter = createTRPCRouter({
           });
         } catch (error) {
           console.error("Failed to mark email as read in Gmail:", error);
-          // Continue anyway since we updated our DB
         }
       }
 
@@ -259,92 +255,88 @@ export const gmailRouter = createTRPCRouter({
     }),
 
   /**
-   * Reply to an email
+   * Reply to an email (TODO: fix)
    */
-  replyMessage: protectedProcedure
-    .input(
-      z.object({
-        messageId: z.string(),
-        threadId: z.string(),
-        content: z.string().min(1, "Reply cannot be empty"),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      if (!ctx.gmail) {
-        throw new TRPCError({
-          code: "UNAUTHORIZED",
-          message: "No Gmail client in context",
-        });
-      }
+  // replyMessage: protectedProcedure
+  //   .input(
+  //     z.object({
+  //       messageId: z.string(),
+  //       threadId: z.string(),
+  //       content: z.string().min(1, "Reply cannot be empty"),
+  //     }),
+  //   )
+  //   .mutation(async ({ ctx, input }) => {
+  //     if (!ctx.gmail) {
+  //       throw new TRPCError({
+  //         code: "UNAUTHORIZED",
+  //         message: "No Gmail client in context",
+  //       });
+  //     }
 
-      console.log("Starting reply process for message:", input.messageId);
+  //     console.log("Starting reply process for message:", input.messageId);
 
-      try {
-        // Get the original message to get the subject and recipients
-        const originalMessage = await ctx.gmail.users.messages.get({
-          userId: "me",
-          id: input.messageId,
-          format: "metadata",
-          metadataHeaders: ["Subject", "From", "To", "Cc"],
-        });
+  //     try {
+  //       const originalMessage = await ctx.gmail.users.messages.get({
+  //         userId: "me",
+  //         id: input.messageId,
+  //         format: "metadata",
+  //         metadataHeaders: ["Subject", "From", "To", "Cc"],
+  //       });
 
-        console.log("Got original message:", originalMessage.data);
+  //       console.log("Got original message:", originalMessage.data);
 
-        const headers = originalMessage.data.payload?.headers ?? [];
-        const subject = headers.find((h) => h.name === "Subject")?.value ?? "";
-        const from = headers.find((h) => h.name === "From")?.value ?? "";
-        const to = headers.find((h) => h.name === "To")?.value ?? "";
-        const cc = headers.find((h) => h.name === "Cc")?.value ?? "";
+  //       const headers = originalMessage.data.payload?.headers ?? [];
+  //       const subject = headers.find((h) => h.name === "Subject")?.value ?? "";
+  //       const from = headers.find((h) => h.name === "From")?.value ?? "";
+  //       const to = headers.find((h) => h.name === "To")?.value ?? "";
+  //       const cc = headers.find((h) => h.name === "Cc")?.value ?? "";
 
-        console.log("Extracted headers:", { subject, from, to, cc });
+  //       console.log("Extracted headers:", { subject, from, to, cc });
 
-        // Create the email content
-        const emailLines = [
-          `MIME-Version: 1.0`,
-          `Content-Type: text/plain; charset="UTF-8"`,
-          `Content-Transfer-Encoding: 7bit`,
-          `From: ${ctx.session.user.email}`,
-          `To: ${to}`,
-          ...(cc ? [`Cc: ${cc}`] : []),
-          `Subject: Re: ${subject}`,
-          `In-Reply-To: ${input.messageId}`,
-          `References: ${input.messageId}`,
-          `Thread-Index: ${Buffer.from(input.threadId).toString('base64')}`,
-          ``,
-          input.content,
-        ];
+  //       const emailLines = [
+  //         `MIME-Version: 1.0`,
+  //         `Content-Type: text/plain; charset="UTF-8"`,
+  //         `Content-Transfer-Encoding: 7bit`,
+  //         `From: ${ctx.session.user.email}`,
+  //         `To: ${to}`,
+  //         ...(cc ? [`Cc: ${cc}`] : []),
+  //         `Subject: Re: ${subject}`,
+  //         `In-Reply-To: ${input.messageId}`,
+  //         `References: ${input.messageId}`,
+  //         `Thread-Index: ${Buffer.from(input.threadId).toString('base64')}`,
+  //         ``,
+  //         input.content,
+  //       ];
 
-        const email = emailLines.join("\r\n");
-        console.log("Generated email content:", email);
+  //       const email = emailLines.join("\r\n");
+  //       console.log("Generated email content:", email);
 
-        const encodedEmail = Buffer.from(email)
-          .toString("base64")
-          .replace(/\+/g, "-")
-          .replace(/\//g, "_")
-          .replace(/=+$/, "");
+  //       const encodedEmail = Buffer.from(email)
+  //         .toString("base64")
+  //         .replace(/\+/g, "-")
+  //         .replace(/\//g, "_")
+  //         .replace(/=+$/, "");
 
-        console.log("Sending reply to Gmail API...");
-        // Send the reply
-        const response = await ctx.gmail.users.messages.send({
-          userId: "me",
-          requestBody: {
-            raw: encodedEmail,
-            threadId: input.threadId,
-          },
-        });
+  //       console.log("Sending reply to Gmail API...");
+  //       const response = await ctx.gmail.users.messages.send({
+  //         userId: "me",
+  //         requestBody: {
+  //           raw: encodedEmail,
+  //           threadId: input.threadId,
+  //         },
+  //       });
 
-        console.log("Gmail API response:", response.data);
+  //       console.log("Gmail API response:", response.data);
 
-        // Sync the new message to our database
-        await syncGmailEmails(ctx.session.user.id);
+  //       await syncGmailEmails(ctx.session.user.id);
 
-        return response.data;
-      } catch (error) {
-        console.error("Failed to send reply:", error);
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: "Failed to send reply",
-        });
-      }
-    }),
+  //       return response.data;
+  //     } catch (error) {
+  //       console.error("Failed to send reply:", error);
+  //       throw new TRPCError({
+  //         code: "INTERNAL_SERVER_ERROR",
+  //         message: "Failed to send reply",
+  //       });
+  //     }
+  //   }),
 });
