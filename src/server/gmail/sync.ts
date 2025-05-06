@@ -8,7 +8,7 @@ export async function syncGmailEmails(userId: string) {
 
   console.log(`[SYNC] Starting Gmail sync for user: ${userId}`);
 
-  // Step 1: Fetch the user's current checkpoint
+  // get user's last internal date checkpoint (TODO: change to next page token from google api)
   const checkpoint = await db.emailSyncCheckpoint.findUnique({
     where: { userId },
   });
@@ -16,7 +16,7 @@ export async function syncGmailEmails(userId: string) {
   const lastInternalDate = checkpoint?.lastInternalDate;
   console.log(`[SYNC] Last internal date checkpoint: ${lastInternalDate?.toISOString() ?? "None"}`);
 
-  // Step 2: Fetch messages from both INBOX and SENT
+  // TODO: only getting inbox and sent messages, need to get all messages for all labels
   const fetchMessages = async (labelId: string) => {
     const { data } = await gmail.users.messages.list({
       userId: "me",
@@ -47,12 +47,11 @@ export async function syncGmailEmails(userId: string) {
     if (!messageId) continue;
 
     try {
-      // Check if already exists
       const exists = await db.email.findUnique({
         where: { id: messageId },
       });
       if (exists) continue;
-      // Fetch full email
+
       const fullMessage = await gmail.users.messages.get({
         userId: "me",
         id: messageId,
@@ -64,7 +63,8 @@ export async function syncGmailEmails(userId: string) {
       const raw = Buffer.from(base64, 'base64');
       const parsed = await simpleParser(raw);
       console.log("parsed", parsed);
-      // Upload HTML to S3 if needed
+
+      // html to s3
       let htmlUrl: string | null = null;
       if (parsed.html) {
         try {
@@ -77,17 +77,17 @@ export async function syncGmailEmails(userId: string) {
       const attachments = parser.attachments;
       console.log(attachments);
 
-      // Upload attachments to S3 and create attachment records
+      // attachments to s3 and create attachment records
       const attachmentRecords = await Promise.all(
         attachments.map(async (attachment) => {
           if (!attachment.content || !attachment.filename) return null;
-          
+
           try {
             const url = await uploadToS3(
               `attachments/${messageId}/${attachment.filename}`,
               attachment.content.toString('base64')
             );
-            
+
             return {
               id: `${messageId}-${attachment.filename}`,
               filename: attachment.filename,
@@ -103,7 +103,7 @@ export async function syncGmailEmails(userId: string) {
         })
       );
 
-      // Save email to DB with attachments
+      // persist all to db
       await db.email.create({
         data: {
           id: messageId,
@@ -125,18 +125,17 @@ export async function syncGmailEmails(userId: string) {
 
       console.log(`[SYNC] Synced email ${messageId}`);
 
-      // Update newestInternalDate seen so far
+      // update checkpoint (TODO: change to next page token from google api)
       const parsedDate = parsed.date;
       if (parsedDate && (!newestInternalDate || parsedDate > newestInternalDate)) {
         newestInternalDate = parsedDate;
       }
     } catch (error) {
       console.error(`[SYNC] Failed syncing email ${messageId}`, error);
-      // Continue
     }
   }
 
-  // Step 3: Update checkpoint
+  // update checkpoint (TODO: change to next page token from google api)
   if (newestInternalDate) {
     await db.emailSyncCheckpoint.upsert({
       where: { userId },

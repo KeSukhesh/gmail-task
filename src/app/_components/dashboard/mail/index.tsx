@@ -2,30 +2,26 @@
 
 import * as React from "react";
 import { Search, RefreshCw } from "lucide-react";
-import { api } from "~/trpc/react";
-import { skipToken } from "@tanstack/react-query";
-import { cn } from "../../../../lib/utils";
-import { Input } from "../../../../components/ui/input";
+import { cn } from "~/lib/utils";
+import { Input } from "~/app/_components/ui/input";
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
-} from "../../../../components/ui/resizable";
+} from "~/app/_components/ui/resizable";
 import {
   Tabs,
   TabsList,
   TabsTrigger,
-} from "../../../../components/ui/tabs";
-import { TooltipProvider } from "../../../../components/ui/tooltip";
+} from "~/app/_components/ui/tabs";
+import { TooltipProvider } from "~/app/_components/ui/tooltip";
 import { MailDisplay } from "./mail-display";
 import { MailList } from "./mail-list";
-import type { Mail, MessagePart } from "./types";
-import { useMail } from "./mail-context";
 import type { Section } from "../wrapper/dashboardWrapper";
 import Image from "next/image";
-import { Button } from "../../../../components/ui/button";
+import { Button } from "~/app/_components/ui/button";
 import { signOut, useSession } from "next-auth/react";
-import { useDebounce } from "~/hooks/useDebounce";
+import { useMail } from "~/lib/hooks/useMail";
 
 interface MailProps {
   defaultLayout?: number[];
@@ -48,154 +44,23 @@ export function Mail({
   searchQuery,
   setSearchQuery,
 }: MailProps) {
-  const [isCollapsed, setIsCollapsed] = React.useState(defaultCollapsed);
-  const [selectedMailId, setSelectedMailId] = useMail();
-  const [tabValue, setTabValue] = React.useState("all");
   const { data: session } = useSession();
-  const [localSearchQuery, setLocalSearchQuery] = React.useState(searchQuery);
-  const debouncedSearchQuery = useDebounce(localSearchQuery, 300);
+  const {
+    isCollapsed,
+    setIsCollapsed,
+    tabValue,
+    setTabValue,
+    localSearchQuery,
+    setLocalSearchQuery,
+    isSyncing,
+    syncEmails,
+    isMessagesLoading,
+    filteredMessagesByTab,
+    isSelectedMessageLoading,
+    selectedMessage,
+    handleMailSelect,
+  } = useMail({ section, searchQuery, setSearchQuery, defaultCollapsed });
 
-  const { mutate: syncEmails, isPending: isSyncing } = api.gmail.syncEmails.useMutation({
-    onSuccess: () => {
-      console.log("[SYNC] Synced!");
-      void refetchMessages();
-    },
-    onError: (error) => {
-      console.error("[SYNC] Failed to sync emails:", error);
-    }
-  });
-
-  React.useEffect(() => {
-    syncEmails();
-  }, [syncEmails]);
-
-  React.useEffect(() => {
-    setSearchQuery(debouncedSearchQuery);
-  }, [debouncedSearchQuery, setSearchQuery]);
-
-  const getLabelId = (section: string): string => {
-    switch (section) {
-      case "INBOX":
-        return "INBOX";
-      case "SENT":
-        return "SENT";
-      case "STARRED":
-        return "STARRED";
-      case "DRAFT":
-        return "DRAFT";
-      case "SPAM":
-        return "SPAM";
-      case "TRASH":
-        return "TRASH";
-      default:
-        return "INBOX";
-    }
-  };
-
-  const labelIds = section === "ALL_MAIL" ? undefined : [getLabelId(section)];
-  const { data: messages, isLoading: isMessagesLoading, refetch: refetchMessages } = api.gmail.listMessages.useQuery({
-    ...(labelIds ? { labelIds } : {}),
-    maxResults: 20,
-    query: searchQuery || undefined,
-  }, {
-    enabled: !!section
-  });
-
-  const { data: selectedMessageData, isLoading: isSelectedMessageLoading } = api.gmail.getMessage.useQuery(
-    selectedMailId ? { messageId: selectedMailId, format: "full" } : skipToken,
-    { enabled: !!selectedMailId }
-  );
-
-  const transformMessage = React.useCallback((message: {
-    id?: string | null;
-    snippet?: string | null;
-    internalDate?: string | null;
-    payload?: MessagePart;
-    labelIds?: string[] | null;
-    html?: string | null;
-    text?: string | null;
-    htmlUrl?: string | null;
-    threadId?: string | null;
-    attachments?: Array<{
-      id: string;
-      filename: string;
-      contentType: string;
-      size: number;
-      url: string;
-      cid: string | null;
-    }>;
-  }): Mail | null => {
-    const getLabelName = (labelId: string): string => {
-      const labelMap: Record<string, string> = {
-        "INBOX": "Inbox",
-        "SENT": "Sent",
-        "DRAFT": "Draft",
-        "SPAM": "Spam",
-        "TRASH": "Trash",
-        "STARRED": "Starred",
-        "IMPORTANT": "Important",
-        "UNREAD": "Unread",
-      };
-      return labelMap[labelId] ?? labelId;
-    };
-
-    if (!message.id || !message.payload) return null;
-    const headers = message.payload.headers ?? [];
-    const from = headers.find((h) => h.name === "From")?.value ?? "";
-    const name = from.split("<")[0]?.trim() ?? from;
-    const emailMatch = /<([^>]+)>/.exec(from);
-    const email = emailMatch?.[1] ?? from;
-
-    // If this is the selected message, consider it read
-    const isRead = selectedMailId === message.id || !message.labelIds?.includes("UNREAD");
-
-    return {
-      id: message.id,
-      name,
-      email,
-      subject: headers.find((h) => h.name === "Subject")?.value ?? "",
-      text: message.text ?? message.snippet ?? "",
-      date: message.internalDate ? new Date(Number(message.internalDate)).toLocaleDateString() : "",
-      snippet: message.snippet ?? "",
-      internalDate: message.internalDate ?? "",
-      from,
-      payload: message.payload,
-      labelIds: message.labelIds ?? [],
-      labels: (message.labelIds ?? []).map(getLabelName),
-      read: isRead,
-      htmlUrl: message.htmlUrl ?? null,
-      threadId: message.threadId ?? null,
-      attachments: message.attachments ?? [],
-    };
-  }, [selectedMailId]);
-
-  const filteredAndTransformedMessages = React.useMemo(() => {
-    return (messages?.messages ?? [])
-      .map(transformMessage)
-      .filter((message): message is Mail => message !== null);
-  }, [messages, transformMessage]);
-
-  const filteredMessagesByTab = React.useMemo(() => {
-    if (tabValue === "unread") {
-      return filteredAndTransformedMessages.filter((item) => !item.read);
-    }
-    return filteredAndTransformedMessages;
-  }, [filteredAndTransformedMessages, tabValue]);
-
-  const { mutate: markAsRead } = api.gmail.markAsRead.useMutation({
-    onSuccess: () => {
-      void refetchMessages();
-    },
-  });
-
-  const handleMailSelect = React.useCallback((mailId: string) => {
-    setSelectedMailId({ selected: mailId });
-    markAsRead({ messageId: mailId });
-  }, [setSelectedMailId, markAsRead]);
-
-  const selectedMessage = selectedMessageData ? transformMessage(selectedMessageData) : null;
-  console.log("selected message formatted", selectedMessage);
-  console.log("raw message data", selectedMessageData);
   return (
     <TooltipProvider delayDuration={0}>
       <ResizablePanelGroup
@@ -423,9 +288,9 @@ export function Mail({
                 <form onSubmit={(e) => e.preventDefault()}>
                   <div className="relative">
                     <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input 
+                    <Input
                       name="search"
-                      placeholder="Search emails..." 
+                      placeholder="Search emails..."
                       className="pl-8"
                       value={localSearchQuery}
                       onChange={(e) => setLocalSearchQuery(e.target.value)}

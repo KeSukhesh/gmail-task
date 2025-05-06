@@ -1,6 +1,5 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import {
   Archive,
   ArchiveX,
@@ -14,31 +13,30 @@ import {
   Download,
 } from "lucide-react";
 import { Loader2 } from "lucide-react";
-import { Button } from "../../../../components/ui/button";
-import { Calendar } from "../../../../components/ui/calendar";
+import { Button } from "~/app/_components/ui/button";
+import { Calendar } from "~/app/_components/ui/calendar";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "../../../../components/ui/dropdown-menu";
+} from "~/app/_components/ui/dropdown-menu";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "../../../../components/ui/popover";
-import { Separator } from "../../../../components/ui/separator";
-import { Textarea } from "../../../../components/ui/textarea";
+} from "~/app/_components/ui/popover";
+import { Separator } from "~/app/_components/ui/separator";
+import { Textarea } from "~/app/_components/ui/textarea";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
-} from "../../../../components/ui/tooltip";
-import { Avatar, AvatarFallback, AvatarImage } from "../../../../components/ui/avatar";
+} from "~/app/_components/ui/tooltip";
+import { Avatar, AvatarFallback, AvatarImage } from "~/app/_components/ui/avatar";
 import type { Mail } from "./types";
 import { safeFormat } from "./utils";
-import { api } from "~/trpc/react";
-import { useMail } from "./mail-context";
+import { useMailDisplay } from "~/lib/hooks/useMailDisplay";
 
 interface MailDisplayProps {
   mail: Mail | null;
@@ -46,164 +44,14 @@ interface MailDisplayProps {
 }
 
 export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
-  const [htmlContent, setHtmlContent] = useState<string | null>(null);
-  const [isLoadingHtml, setIsLoadingHtml] = useState(false);
-  const [replyContent, setReplyContent] = useState("");
-  // const [isReplying, setIsReplying] = useState(false);
-  const [, setSelectedMailId] = useMail();
-  const utils = api.useUtils();
-
-  const { mutate: deleteMessage } = api.gmail.deleteMessage.useMutation({
-    onMutate: async (deletedMessage) => {
-      // Cancel any outgoing refetches
-      await utils.gmail.listMessages.cancel();
-      await utils.gmail.getMessage.cancel();
-
-      // Snapshot the previous value
-      const previousMessages = utils.gmail.listMessages.getData({});
-
-      // Optimistically update the list
-      utils.gmail.listMessages.setData({}, (old) => {
-        if (!old) return old;
-        return {
-          ...old,
-          messages: old.messages.filter((msg) => msg.id !== deletedMessage.messageId),
-        };
-      });
-
-      // Clear the selected message
-      setSelectedMailId({ selected: null });
-
-      return { previousMessages };
-    },
-    onError: (err, deletedMessage, context) => {
-      // Revert the optimistic update
-      if (context?.previousMessages) {
-        utils.gmail.listMessages.setData({}, context.previousMessages);
-      }
-    },
-    onSettled: () => {
-      // Sync with server
-      void utils.gmail.listMessages.invalidate();
-    },
-  });
-
-  const { mutate: replyMessage, isPending: isReplyingPending } = api.gmail.replyMessage.useMutation({
-    onMutate: () => {
-      console.log("Starting reply mutation...");
-    },
-    onSuccess: (data) => {
-      console.log("Reply sent successfully:", data);
-      setReplyContent("");
-      void utils.gmail.listMessages.invalidate();
-    },
-    onError: (error) => {
-      console.error("Failed to send reply:", error);
-    },
-  });
-  
-  useEffect(() => {
-    if (mail?.htmlUrl) {
-      setIsLoadingHtml(true);
-      fetch(mail.htmlUrl)
-        .then((response) => response.text())
-        .then((html) => {
-          // Process HTML to handle images
-          const processedHtml = processHtmlContent(html);
-          setHtmlContent(processedHtml);
-        })
-        .catch((error) => {
-          console.error("Error fetching HTML:", error);
-          setHtmlContent(null);
-        })
-        .finally(() => setIsLoadingHtml(false));
-    } else {
-      setHtmlContent(null);
-    }
-  }, [mail?.htmlUrl]);
-
-  // Function to process HTML content and handle images
-  const processHtmlContent = (html: string): string => {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
-    
-    // Handle images
-    const images = doc.getElementsByTagName('img');
-    for (const img of Array.from(images)) {
-      const src = img.getAttribute('src');
-      if (src) {
-        // Handle data URIs (they're already base64 encoded)
-        if (src.startsWith('data:')) {
-          continue;
-        }
-
-        // Handle relative URLs
-        if (src.startsWith('/')) {
-          img.setAttribute('src', `https://mail.google.com${src}`);
-        }
-
-        // Handle cid: URLs (inline attachments)
-        if (src.startsWith('cid:')) {
-          const cid = src.replace('cid:', '');
-          // Find matching attachment
-          const attachment = mail?.attachments.find(a => a.cid === cid);
-          if (attachment) {
-            img.setAttribute('src', attachment.url);
-          } else {
-            img.setAttribute('src', `data:image/png;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7`); // 1x1 transparent pixel as fallback
-          }
-        }
-
-        // Add loading and error handling
-        img.setAttribute('loading', 'lazy');
-        img.setAttribute('onerror', 'this.onerror=null; this.src="data:image/png;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";');
-      }
-    }
-
-    return doc.documentElement.outerHTML;
-  };
-
-  // Function to format file size
-  const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  };
-
-  console.log("starting", processHtmlContent(mail?.htmlUrl ?? ""));
-  const getInitials = (name: string): string => {
-    // Remove quotes and trim whitespace
-    const cleanName = name.replace(/["']/g, '').trim();
-    // Split by spaces and filter out empty strings
-    const words = cleanName.split(/\s+/).filter(Boolean);
-    // Take first letter of first two words
-    return words.slice(0, 2).map(word => word[0]).join('');
-  };
-
-  const handleDelete = () => {
-    if (mail) {
-      deleteMessage({ messageId: mail.id });
-    }
-  };
-
-  const handleReply = async (e: React.FormEvent) => {
-    e.preventDefault();
-    console.log("Form submitted, reply content:", replyContent);
-
-    if (!mail || !replyContent.trim()) {
-      console.log("No mail selected or empty reply content");
-      return;
-    }
-
-    console.log("Sending reply for message:", mail.id);
-    replyMessage({
-      messageId: mail.id,
-      threadId: mail.threadId ?? mail.id,
-      content: replyContent.trim(),
-    });
-  };
+  const {
+    htmlContent,
+    isLoadingHtml,
+    replyContent,
+    setReplyContent,
+    formatFileSize,
+    getInitials,
+  } = useMailDisplay({ mail });
 
   if (isLoading) {
     return (
@@ -239,7 +87,7 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" disabled={!mail} onClick={handleDelete}>
+              <Button variant="ghost" size="icon" disabled={!mail}>
                 <Trash2 className="h-4 w-4" />
                 <span className="sr-only">Move to trash</span>
               </Button>
@@ -409,27 +257,22 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
           </div>
           <Separator className="mt-auto" />
           <div className="p-4">
-            <form onSubmit={handleReply}>
+            <form onSubmit={(e) => e.preventDefault()}>
               <div className="grid gap-4">
                 <Textarea
                   className="p-4"
                   placeholder={`Reply ${mail.name}...`}
                   value={replyContent}
                   onChange={(e) => setReplyContent(e.target.value)}
-                  disabled={isReplyingPending}
                 />
                 <div className="flex items-center">
                   <Button
                     type="submit"
                     size="sm"
                     className="ml-auto"
-                    disabled={!replyContent.trim() || isReplyingPending}
+                    disabled={!replyContent.trim()}
                   >
-                    {isReplyingPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      "Send"
-                    )}
+                    Send
                   </Button>
                 </div>
               </div>
