@@ -254,6 +254,66 @@ export const gmailRouter = createTRPCRouter({
       return { success: true };
     }),
 
+  getInfiniteEmails: protectedProcedure
+    .input(
+      z.object({
+        limit: z.number().min(1).max(100).default(20),
+        cursor: z.string().nullish(),
+        query: z.string().optional(),
+        labelIds: z.array(z.string()).optional(),
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      const { limit, cursor, query, labelIds } = input;
+      const userId = ctx.session?.user?.id;
+
+      if (!userId) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "You must be logged in to fetch emails",
+        });
+      }
+
+      const emails = await ctx.db.email.findMany({
+        where: {
+          userId,
+          ...(query ? {
+            OR: [
+              { subject: { contains: query, mode: "insensitive" } },
+              { snippet: { contains: query, mode: "insensitive" } },
+            ],
+          } : {}),
+          ...(labelIds && labelIds.length > 0 ? {
+            labelIds: {
+              hasSome: labelIds
+            }
+          } : {}),
+        },
+        include: {
+          attachments: true,
+        },
+        orderBy: {
+          internalDate: "desc",
+        },
+        take: limit + 1,
+        ...(cursor ? { 
+          skip: 1,
+          cursor: { id: cursor }
+        } : {}),
+      });
+
+      let nextCursor: typeof cursor | undefined = undefined;
+      if (emails.length > limit) {
+        const nextItem = emails.pop();
+        nextCursor = nextItem!.id;
+      }
+
+      return {
+        emails,
+        nextCursor,
+      };
+    }),
+
   /**
    * Reply to an email (TODO: fix)
    */

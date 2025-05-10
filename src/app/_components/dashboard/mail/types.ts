@@ -42,7 +42,7 @@ export interface Mail {
   snippet: string;
   internalDate: string;
   from: string;
-  payload: MessagePart | null;
+  payload?: MessagePart | null;
   labelIds?: string[];
   labels: string[];
   read: boolean;

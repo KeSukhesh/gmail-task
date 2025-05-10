@@ -59,6 +59,9 @@ export function Mail({
     isSelectedMessageLoading,
     selectedMessage,
     handleMailSelect,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
   } = useMail({ section, searchQuery, setSearchQuery, defaultCollapsed });
 
   return (
@@ -302,6 +305,9 @@ export function Mail({
                 items={filteredMessagesByTab}
                 isLoading={isMessagesLoading}
                 onSelect={handleMailSelect}
+                hasNextPage={hasNextPage}
+                isFetchingNextPage={isFetchingNextPage}
+                fetchNextPage={fetchNextPage}
               />
             </div>
           </div>
