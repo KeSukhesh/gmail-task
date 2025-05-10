@@ -89,6 +89,7 @@ model EmailSyncCheckpoint {
   lastHistoryId    String? // for incremental history-based sync
   lastInternalDate DateTime? // fallback simple sync based on date
   updatedAt        DateTime  @updatedAt
+  nextPageToken    String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

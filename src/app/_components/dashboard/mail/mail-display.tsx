@@ -186,7 +186,7 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
       {mail ? (
         <div className="flex flex-1 flex-col">
           <div className="flex items-start p-4">
-            <div className="flex items-start gap-4 text-sm">
+            <div className="flex items-start gap-4 text-sm flex-1">
               <Avatar>
                 <AvatarImage alt={mail.name} />
                 <AvatarFallback>
@@ -201,9 +201,17 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
                 </div>
               </div>
             </div>
-            {mail.date && (
-              <div className="ml-auto text-xs text-muted-foreground">
-                {safeFormat(mail.date, "PPpp")}
+            {mail.internalDate && (
+              <div className="text-xs text-muted-foreground whitespace-nowrap">
+                {new Date(mail.internalDate).toLocaleString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                  hour: 'numeric',
+                  minute: 'numeric',
+                  second: 'numeric',
+                  hour12: true
+                })}
               </div>
             )}
           </div>

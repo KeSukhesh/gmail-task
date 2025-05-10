@@ -59,6 +59,9 @@ export function Mail({
     isSelectedMessageLoading,
     selectedMessage,
     handleMailSelect,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
   } = useMail({ section, searchQuery, setSearchQuery, defaultCollapsed });
 
   return (
@@ -105,7 +108,7 @@ export function Mail({
               </div>
             </div>
 
-            <div className="flex flex-1 flex-col overflow-y-hidden p-3">
+            <div className="flex flex-1 flex-col overflow-auto p-3">
               {!isCollapsed && (
                 <h3 className="mb-3 px-2 text-xs font-medium text-gray-500 dark:text-gray-400">
                   Emails
@@ -302,6 +305,9 @@ export function Mail({
                 items={filteredMessagesByTab}
                 isLoading={isMessagesLoading}
                 onSelect={handleMailSelect}
+                hasNextPage={hasNextPage}
+                isFetchingNextPage={isFetchingNextPage}
+                fetchNextPage={fetchNextPage}
               />
             </div>
           </div>
@@ -309,7 +315,7 @@ export function Mail({
         <ResizableHandle withHandle />
         <ResizablePanel defaultSize={defaultLayout[2]} minSize={30}>
           <div className="flex h-full flex-col">
-            <div className="flex-1 overflow-hidden">
+            <div className="flex-1 overflow-auto">
               <MailDisplay
                 mail={selectedMessage}
                 isLoading={isSelectedMessageLoading}

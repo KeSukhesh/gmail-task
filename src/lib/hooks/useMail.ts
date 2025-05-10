@@ -2,8 +2,10 @@ import * as React from "react";
 import { api } from "~/trpc/react";
 import { skipToken } from "@tanstack/react-query";
 import { useMail as useMailContext } from "~/app/_components/dashboard/mail/mail-context";
-import type { Mail, MessagePart } from "~/app/_components/dashboard/mail/types";
+import type { Mail } from "~/app/_components/dashboard/mail/types";
+import type { Email, Attachment } from "@prisma/client";
 import { useDebounce } from "./useDebounce";
+import { useMemo, } from "react";
 
 interface UseMailProps {
   section: string;
@@ -11,6 +13,10 @@ interface UseMailProps {
   setSearchQuery: (query: string) => void;
   defaultCollapsed?: boolean;
 }
+
+type EmailWithAttachments = Email & {
+  attachments?: Attachment[];
+};
 
 export function useMail({ section, searchQuery, setSearchQuery, defaultCollapsed = false }: UseMailProps) {
   const [isCollapsed, setIsCollapsed] = React.useState(defaultCollapsed);
@@ -37,119 +43,90 @@ export function useMail({ section, searchQuery, setSearchQuery, defaultCollapsed
     syncEmails();
   }, [syncEmails]);
 
-  const getLabelId = (section: string): string => {
-    switch (section) {
-      case "INBOX":
-        return "INBOX";
-      case "SENT":
-        return "SENT";
-      case "STARRED":
-        return "STARRED";
-      case "DRAFT":
-        return "DRAFT";
-      case "SPAM":
-        return "SPAM";
-      case "TRASH":
-        return "TRASH";
-      default:
-        return "INBOX";
+  const {
+    data: infiniteData,
+    isLoading: isMessagesLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    refetch: refetchMessages,
+  } = api.gmail.getInfiniteEmails.useInfiniteQuery(
+    {
+      limit: 20,
+      query: searchQuery || undefined,
+      labelIds: section ? [section] : undefined,
+    },
+    {
+      getNextPageParam: (lastPage) => lastPage.nextCursor,
+      enabled: !!section,
+      initialCursor: null,
     }
-  };
+  );
 
-  const labelIds = section === "ALL_MAIL" ? undefined : [getLabelId(section)];
-  const { data: messages, isLoading: isMessagesLoading, refetch: refetchMessages } = api.gmail.listMessages.useQuery({
-    ...(labelIds ? { labelIds } : {}),
-    maxResults: 20,
-    query: searchQuery || undefined,
-  }, {
-    enabled: !!section
-  });
+  const emails = useMemo(() => {
+    return infiniteData?.pages.flatMap((page) => page.emails) ?? [];
+  }, [infiniteData]);
 
   const { data: selectedMessageData, isLoading: isSelectedMessageLoading } = api.gmail.getMessage.useQuery(
     selectedMailId ? { messageId: selectedMailId, format: "full" } : skipToken,
     { enabled: !!selectedMailId }
   );
 
-  const transformMessage = React.useCallback((message: {
-    id?: string | null;
-    snippet?: string | null;
-    internalDate?: string | null;
-    payload?: MessagePart;
-    labelIds?: string[] | null;
-    html?: string | null;
-    text?: string | null;
-    htmlUrl?: string | null;
-    threadId?: string | null;
-    attachments?: Array<{
-      id: string;
-      filename: string;
-      contentType: string;
-      size: number;
-      url: string;
-      cid: string | null;
-    }>;
-  }): Mail | null => {
-    const getLabelName = (labelId: string): string => {
+  const transformMessage = React.useCallback(
+    (message: EmailWithAttachments) => {
       const labelMap: Record<string, string> = {
-        "INBOX": "Inbox",
-        "SENT": "Sent",
-        "DRAFT": "Draft",
-        "SPAM": "Spam",
-        "TRASH": "Trash",
-        "STARRED": "Starred",
-        "IMPORTANT": "Important",
-        "UNREAD": "Unread",
+        INBOX: "Inbox", SENT: "Sent", DRAFT: "Draft", SPAM: "Spam",
+        TRASH: "Trash", STARRED: "Starred", IMPORTANT: "Important", UNREAD: "Unread",
       };
-      return labelMap[labelId] ?? labelId;
-    };
 
-    if (!message.id || !message.payload) return null;
-    const headers = message.payload.headers ?? [];
-    const from = headers.find((h) => h.name === "From")?.value ?? "";
-    const name = from.split("<")[0]?.trim() ?? from;
-    const emailMatch = /<([^>]+)>/.exec(from);
-    const email = emailMatch?.[1] ?? from;
+      const labelNames = message.labelIds.map((id) => labelMap[id] ?? id);
+      const from = message.from ?? "";
+      const name = from.split("<")[0]?.trim() ?? from;
+      const emailMatch = /<([^>]+)>/.exec(from);
+      const email = emailMatch?.[1] ?? from;
+      const isRead = !message.labelIds.includes("UNREAD");
 
-    // If this is the selected message, consider it read
-    const isRead = selectedMailId === message.id || !message.labelIds?.includes("UNREAD");
+      return {
+        id: message.id,
+        name,
+        email,
+        subject: message.subject ?? "",
+        text: message.text ?? message.snippet ?? "",
+        date: message.internalDate ? new Date(message.internalDate).toLocaleDateString() : "",
+        snippet: message.snippet ?? "",
+        internalDate: message.internalDate ?? "",
+        from: message.from ?? "",
+        payload: null,
+        labelIds: message.labelIds ?? [],
+        labels: labelNames,
+        read: isRead,
+        htmlUrl: message.htmlUrl ?? null,
+        threadId: message.threadId ?? null,
+        attachments: message.attachments?.map(att => ({
+          id: att.id,
+          filename: att.filename,
+          contentType: att.contentType,
+          size: att.size,
+          url: att.url,
+          cid: att.cid,
+        })) ?? [],
+      } as Mail;
+    },
+    []
+  );
 
-    return {
-      id: message.id,
-      name,
-      email,
-      subject: headers.find((h) => h.name === "Subject")?.value ?? "",
-      text: message.text ?? message.snippet ?? "",
-      date: message.internalDate ? new Date(Number(message.internalDate)).toLocaleDateString() : "",
-      snippet: message.snippet ?? "",
-      internalDate: message.internalDate ?? "",
-      from,
-      payload: message.payload,
-      labelIds: message.labelIds ?? [],
-      labels: (message.labelIds ?? []).map(getLabelName),
-      read: isRead,
-      htmlUrl: message.htmlUrl ?? null,
-      threadId: message.threadId ?? null,
-      attachments: message.attachments ?? [],
-    };
-  }, [selectedMailId]);
-
-  const filteredAndTransformedMessages = React.useMemo(() => {
-    return (messages?.messages ?? [])
-      .map(transformMessage)
-      .filter((message): message is Mail => message !== null);
-  }, [messages, transformMessage]);
+  const filteredAndTransformedMessages = emails
+    .map(transformMessage)
+    .filter((message): message is Mail => message !== null);
 
   const filteredMessagesByTab = React.useMemo(() => {
-    if (tabValue === "unread") {
-      return filteredAndTransformedMessages.filter((item) => !item.read);
-    }
-    return filteredAndTransformedMessages;
+    return tabValue === "unread"
+      ? filteredAndTransformedMessages.filter((item) => !item.read)
+      : filteredAndTransformedMessages;
   }, [filteredAndTransformedMessages, tabValue]);
 
   const { mutate: markAsRead } = api.gmail.markAsRead.useMutation({
-    onSuccess: () => {
-      void refetchMessages();
-    },
+    onSuccess: () => { void refetchMessages(); },
   });
 
   const handleMailSelect = React.useCallback((mailId: string) => {
@@ -157,7 +134,9 @@ export function useMail({ section, searchQuery, setSearchQuery, defaultCollapsed
     markAsRead({ messageId: mailId });
   }, [setSelectedMailId, markAsRead]);
 
-  const selectedMessage = selectedMessageData ? transformMessage(selectedMessageData) : null;
+  const selectedMessage = selectedMessageData
+    ? transformMessage(selectedMessageData as unknown as EmailWithAttachments)
+    : null;
 
   return {
     isCollapsed,
@@ -175,5 +154,8 @@ export function useMail({ section, searchQuery, setSearchQuery, defaultCollapsed
     isSelectedMessageLoading,
     selectedMessage,
     handleMailSelect,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
   };
 }
