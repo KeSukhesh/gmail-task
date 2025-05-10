@@ -2,7 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { syncGmailEmails } from "~/server/gmail/sync";
-import { gmailClient } from "~/server/gmail/client";
+import MailComposer from "nodemailer/lib/mail-composer";
 
 export const gmailRouter = createTRPCRouter({
   /**
@@ -190,7 +190,7 @@ export const gmailRouter = createTRPCRouter({
           internalDate: "desc",
         },
         take: limit + 1,
-        ...(cursor ? { 
+        ...(cursor ? {
           skip: 1,
           cursor: { id: cursor }
         } : {}),
@@ -216,34 +216,61 @@ export const gmailRouter = createTRPCRouter({
         bcc: z.array(z.string().email()).optional(),
         subject: z.string(),
         text: z.string(),
+        html: z.string().optional(),
+        inReplyTo: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const gmail = await gmailClient(ctx.session.user.id);
-      if (!gmail) {
+      if (!ctx.gmail) {
         throw new TRPCError({
           code: "UNAUTHORIZED",
           message: "Gmail client not initialized",
         });
       }
 
-      // Create email message in base64 format
-      const emailLines = [
-        `To: ${input.to.join(", ")}`,
-        input.cc?.length ? `Cc: ${input.cc.join(", ")}` : "",
-        input.bcc?.length ? `Bcc: ${input.bcc.join(", ")}` : "",
-        "Content-Type: text/plain; charset=utf-8",
-        "MIME-Version: 1.0",
-        `Subject: ${input.subject}`,
-        "",
-        input.text,
-      ].filter(Boolean);
-
-      const email = emailLines.join("\r\n").trim();
-      const encodedEmail = Buffer.from(email).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      if (!ctx.session.user.email) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "User email is required",
+        });
+      }
 
       try {
-        const response = await gmail.users.messages.send({
+        const from = ctx.session.user.name
+          ? `${ctx.session.user.name} <${ctx.session.user.email}>`
+          : ctx.session.user.email;
+
+        const mail = new MailComposer({
+          from,
+          to: input.to,
+          cc: input.cc,
+          bcc: input.bcc,
+          subject: input.subject,
+          text: input.text,
+          html: input.html,
+          inReplyTo: input.inReplyTo,
+          textEncoding: "base64",
+        });
+
+        const message = await new Promise<Buffer>((resolve, reject) => {
+          const compiled = mail.compile();
+          if (!compiled) {
+            reject(new Error("Failed to compile email"));
+            return;
+          }
+          compiled.build((err: Error | null, message: Buffer) => {
+            if (err) {
+              reject(new Error(err.message));
+            } else {
+              resolve(message);
+            }
+          });
+        });
+
+        // Convert to base64url format for Gmail API
+        const encodedEmail = message.toString("base64url");
+
+        const response = await ctx.gmail.users.messages.send({
           userId: "me",
           requestBody: {
             raw: encodedEmail,
@@ -254,9 +281,11 @@ export const gmailRouter = createTRPCRouter({
           throw new Error("No response data from Gmail API");
         }
 
+        await syncGmailEmails(ctx.session.user.id);
+
         return response.data;
       } catch (error) {
-        console.error("Error sending email:", error);
+        console.error("Error sending email:", error instanceof Error ? error.message : "Unknown error");
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Failed to send email",

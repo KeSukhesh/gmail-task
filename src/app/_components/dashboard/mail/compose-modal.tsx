@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from "~/app/_components/ui/dialog";
 import { useComposeMail } from "~/lib/hooks/useMail";
+import { useMail } from "~/lib/hooks/useMail";
 
 interface ComposeModalProps {
   isOpen: boolean;
@@ -45,6 +46,7 @@ function EmailChips({
 
 export function ComposeModal({ isOpen, onClose }: ComposeModalProps) {
   const { sendEmail } = useComposeMail();
+  const { syncEmails } = useMail();
   const [subject, setSubject] = React.useState("");
   const [to, setTo] = React.useState<string[]>([]);
   const [cc, setCc] = React.useState<string[]>([]);
@@ -77,18 +79,36 @@ export function ComposeModal({ isOpen, onClose }: ComposeModalProps) {
     setCurrentInput("");
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, field: "to" | "cc" | "bcc") => {
     if (e.key === "Tab") {
-      e.preventDefault();
-      addRecipient();
+      if (currentInput.trim()) {
+        // Only prevent tab when converting to chip
+        e.preventDefault();
+        addRecipient();
+      } else {
+        let nextField: HTMLInputElement | null = null;
+        if (field === "to" && showCc) {
+          nextField = document.querySelector<HTMLInputElement>('input[data-field="cc"]');
+        } else if (field === "to" && showBcc) {
+          nextField = document.querySelector<HTMLInputElement>('input[data-field="bcc"]');
+        } else if (field === "to") {
+          nextField = document.querySelector<HTMLInputElement>('input[data-field="subject"]');
+        } else if (field === "cc" && showBcc) {
+          nextField = document.querySelector<HTMLInputElement>('input[data-field="bcc"]');
+        } else if (field === "cc") {
+          nextField = document.querySelector<HTMLInputElement>('input[data-field="subject"]');
+        } else if (field === "bcc") {
+          nextField = document.querySelector<HTMLInputElement>('input[data-field="subject"]');
+        }
+
+        if (nextField) {
+          e.preventDefault();
+          nextField.focus();
+        }
+      }
     } else if (e.key === "Backspace" && !currentInput) {
       e.preventDefault();
-      const updater = {
-        to: setTo,
-        cc: setCc,
-        bcc: setBcc,
-      }[inputMode];
-
+      const updater = { to: setTo, cc: setCc, bcc: setBcc }[field];
       updater((prev) => prev.slice(0, -1));
     }
   };
@@ -106,6 +126,7 @@ export function ComposeModal({ isOpen, onClose }: ComposeModalProps) {
         subject,
         text: content,
       });
+      syncEmails();
       handleClose();
     } catch (err) {
       setError("Failed to send email. Please try again.");
@@ -170,7 +191,8 @@ export function ComposeModal({ isOpen, onClose }: ComposeModalProps) {
                   setInputMode("to");
                   setCurrentInput(e.target.value);
                 }}
-                onKeyDown={handleKeyDown}
+                onKeyDown={(e) => handleKeyDown(e, "to")}
+                data-field="to"
               />
             </div>
             <div className="flex gap-1 ml-auto">
@@ -197,7 +219,8 @@ export function ComposeModal({ isOpen, onClose }: ComposeModalProps) {
                     setInputMode("cc");
                     setCurrentInput(e.target.value);
                   }}
-                  onKeyDown={handleKeyDown}
+                  onKeyDown={(e) => handleKeyDown(e, "cc")}
+                  data-field="cc"
                 />
               </div>
             </div>
@@ -217,7 +240,8 @@ export function ComposeModal({ isOpen, onClose }: ComposeModalProps) {
                     setInputMode("bcc");
                     setCurrentInput(e.target.value);
                   }}
-                  onKeyDown={handleKeyDown}
+                  onKeyDown={(e) => handleKeyDown(e, "bcc")}
+                  data-field="bcc"
                 />
               </div>
             </div>
@@ -232,6 +256,7 @@ export function ComposeModal({ isOpen, onClose }: ComposeModalProps) {
             onChange={(e) => setSubject(e.target.value)}
             placeholder="Subject"
             className="h-8 border border-gray-200 focus-visible:ring-0 focus-visible:ring-offset-0 bg-gray-50/50"
+            data-field="subject"
           />
         </div>
 
@@ -245,25 +270,25 @@ export function ComposeModal({ isOpen, onClose }: ComposeModalProps) {
         />
 
         <div className="flex items-center justify-between border-t pt-4">
-          <Button 
-            variant="default" 
-            size="sm" 
-            className="gap-2" 
-            disabled={to.length === 0 || !subject || !content || isSending}
-            onClick={handleSend}
-          >
-            <Send className="h-4 w-4" />
-            {isSending ? "Sending..." : "Send"}
-          </Button>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            className="gap-2 text-destructive hover:text-destructive" 
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-2 text-destructive hover:text-destructive"
             onClick={handleClose}
             disabled={isSending}
           >
             <Trash2 className="h-4 w-4" />
             Discard
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            className="gap-2"
+            disabled={to.length === 0 || !subject || !content || isSending}
+            onClick={handleSend}
+          >
+            <Send className="h-4 w-4" />
+            {isSending ? "Sending..." : "Send"}
           </Button>
         </div>
       </DialogContent>
