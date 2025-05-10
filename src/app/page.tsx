@@ -11,9 +11,9 @@ export default async function Home() {
     redirect("/login");
   }
 
-  void api.gmail.listMessages.prefetch({
+  void api.gmail.getInfiniteEmails.prefetch({
+    limit: 20,
     labelIds: ["INBOX"],
-    maxResults: 20,
   });
 
   return (
