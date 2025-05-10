@@ -2,7 +2,6 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { syncGmailEmails } from "~/server/gmail/sync";
-import type { Attachment } from "~/app/_components/dashboard/mail/types";
 
 export const gmailRouter = createTRPCRouter({
   /**
@@ -38,17 +37,13 @@ export const gmailRouter = createTRPCRouter({
         id: email.id,
         snippet: email.snippet,
         internalDate: email.internalDate?.toISOString(),
-        payload: {
-          headers: [
-            { name: "Subject", value: email.subject ?? "" },
-            { name: "From", value: email.from ?? "" },
-            { name: "Date", value: email.internalDate?.toISOString() ?? "" },
-          ],
-        },
+        subject: email.subject ?? "",
+        from: email.from ?? "",
+        text: email.text ?? "",
         labelIds: email.labelIds,
         htmlUrl: email.htmlUrl,
-        text: email.text,
-        attachments: email.attachments as Attachment[],
+        threadId: email.threadId,
+        attachments: email.attachments,
       };
     }),
 

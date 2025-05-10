@@ -81,12 +81,18 @@ export function useMail({ section, searchQuery, setSearchQuery, defaultCollapsed
 
       const labelNames = message.labelIds.map((id) => labelMap[id] ?? id);
       const from = message.from ?? "";
-      const name = from.split("<")[0]?.trim() ?? from;
-      const emailMatch = /<([^>]+)>/.exec(from);
+      // Extract name and email from the "From" field
+      const nameRegex = /^"?([^"<]+)"?\s*</;
+      const emailRegex = /<([^>]+)>/;
+      const nameMatch = nameRegex.exec(from);
+      const emailMatch = emailRegex.exec(from);
+      // Clean up the name by removing quotes and trimming
+      const name = nameMatch?.[1]?.replace(/^"|"$/g, '').trim() ?? from;
       const email = emailMatch?.[1] ?? from;
+
       const isRead = !message.labelIds.includes("UNREAD");
 
-      return {
+      const transformedMessage = {
         id: message.id,
         name,
         email,
@@ -111,6 +117,8 @@ export function useMail({ section, searchQuery, setSearchQuery, defaultCollapsed
           cid: att.cid,
         })) ?? [],
       } as Mail;
+
+      return transformedMessage;
     },
     []
   );

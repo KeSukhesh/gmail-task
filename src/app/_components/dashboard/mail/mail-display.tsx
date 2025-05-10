@@ -62,7 +62,7 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
   }
 
   const today = new Date();
-
+  console.log("[DEBUG] Mail:", mail);
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center p-2 h-[55]">
@@ -185,9 +185,9 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
       <Separator />
       {mail ? (
         <div className="flex flex-1 flex-col">
-          <div className="flex items-start p-4">
-            <div className="flex items-start gap-4 text-sm flex-1">
-              <Avatar>
+          <div className="flex items-start justify-between p-4">
+            <div className="flex items-start gap-4">
+              <Avatar className="h-10 w-10">
                 <AvatarImage alt={mail.name} />
                 <AvatarFallback>
                   {getInitials(mail.name)}
@@ -269,7 +269,7 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
               <div className="grid gap-4">
                 <Textarea
                   className="p-4"
-                  placeholder={`Reply ${mail.name}...`}
+                  placeholder={`Reply to "${mail.name}"...`}
                   value={replyContent}
                   onChange={(e) => setReplyContent(e.target.value)}
                 />
