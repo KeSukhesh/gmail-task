@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Search, RefreshCw } from "lucide-react";
+import { Search, RefreshCw, Plus } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { Input } from "~/app/_components/ui/input";
 import {
@@ -22,6 +22,8 @@ import Image from "next/image";
 import { Button } from "~/app/_components/ui/button";
 import { signOut, useSession } from "next-auth/react";
 import { useMail } from "~/lib/hooks/useMail";
+import { Separator } from "~/app/_components/ui/separator";
+import { ComposeModal } from "./compose-modal";
 
 interface MailProps {
   defaultLayout?: number[];
@@ -63,6 +65,7 @@ export function Mail({
     isFetchingNextPage,
     fetchNextPage,
   } = useMail({ section, searchQuery, setSearchQuery, defaultCollapsed });
+  const [isComposeOpen, setIsComposeOpen] = React.useState(false);
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -109,6 +112,19 @@ export function Mail({
             </div>
 
             <div className="flex flex-1 flex-col overflow-auto p-3">
+              <Button
+                variant="outline"
+                className={cn(
+                  "mb-4 w-full justify-start gap-2",
+                  isCollapsed ? "px-2" : "px-4"
+                )}
+                onClick={() => setIsComposeOpen(true)}
+              >
+                <Plus className="h-4 w-4" />
+                {!isCollapsed && <span>Compose</span>}
+              </Button>
+              <Separator className="mb-4" />
+
               {!isCollapsed && (
                 <h3 className="mb-3 px-2 text-xs font-medium text-gray-500 dark:text-gray-400">
                   Emails
@@ -324,6 +340,10 @@ export function Mail({
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>
+      <ComposeModal 
+        isOpen={isComposeOpen} 
+        onClose={() => setIsComposeOpen(false)} 
+      />
     </TooltipProvider>
   );
 }
