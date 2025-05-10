@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "~/app/_components/ui/dialog";
+import { useComposeMail } from "~/lib/hooks/useMail";
 
 interface ComposeModalProps {
   isOpen: boolean;
@@ -43,6 +44,7 @@ function EmailChips({
 }
 
 export function ComposeModal({ isOpen, onClose }: ComposeModalProps) {
+  const { sendEmail } = useComposeMail();
   const [subject, setSubject] = React.useState("");
   const [to, setTo] = React.useState<string[]>([]);
   const [cc, setCc] = React.useState<string[]>([]);
@@ -50,6 +52,8 @@ export function ComposeModal({ isOpen, onClose }: ComposeModalProps) {
   const [showCc, setShowCc] = React.useState(false);
   const [showBcc, setShowBcc] = React.useState(false);
   const [content, setContent] = React.useState("");
+  const [isSending, setIsSending] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
   const [currentInput, setCurrentInput] = React.useState("");
   const [inputMode, setInputMode] = React.useState<"to" | "cc" | "bcc">("to");
@@ -89,6 +93,28 @@ export function ComposeModal({ isOpen, onClose }: ComposeModalProps) {
     }
   };
 
+  const handleSend = async () => {
+    if (to.length === 0 || !subject || !content) return;
+
+    setIsSending(true);
+    setError(null);
+    try {
+      await sendEmail.mutateAsync({
+        to,
+        cc: cc.length > 0 ? cc : undefined,
+        bcc: bcc.length > 0 ? bcc : undefined,
+        subject,
+        text: content,
+      });
+      handleClose();
+    } catch (err) {
+      setError("Failed to send email. Please try again.");
+      console.error("Error sending email:", err);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
   const handleClose = () => {
     setSubject("");
     setTo([]);
@@ -98,6 +124,7 @@ export function ComposeModal({ isOpen, onClose }: ComposeModalProps) {
     setCurrentInput("");
     setShowCc(false);
     setShowBcc(false);
+    setError(null);
     onClose();
   };
 
@@ -122,6 +149,12 @@ export function ComposeModal({ isOpen, onClose }: ComposeModalProps) {
             <X className="h-4 w-4" />
           </Button>
         </DialogHeader>
+
+        {error && (
+          <div className="text-sm text-red-500 mb-2">
+            {error}
+          </div>
+        )}
 
         <div className="flex flex-col gap-1 mb-1">
           {/* TO Field */}
@@ -212,11 +245,23 @@ export function ComposeModal({ isOpen, onClose }: ComposeModalProps) {
         />
 
         <div className="flex items-center justify-between border-t pt-4">
-          <Button variant="default" size="sm" className="gap-2" disabled={to.length === 0 || !subject || !content}>
+          <Button 
+            variant="default" 
+            size="sm" 
+            className="gap-2" 
+            disabled={to.length === 0 || !subject || !content || isSending}
+            onClick={handleSend}
+          >
             <Send className="h-4 w-4" />
-            Send
+            {isSending ? "Sending..." : "Send"}
           </Button>
-          <Button variant="ghost" size="sm" className="gap-2 text-destructive hover:text-destructive" onClick={handleClose}>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="gap-2 text-destructive hover:text-destructive" 
+            onClick={handleClose}
+            disabled={isSending}
+          >
             <Trash2 className="h-4 w-4" />
             Discard
           </Button>

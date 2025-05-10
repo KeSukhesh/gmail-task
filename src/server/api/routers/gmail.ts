@@ -2,6 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { syncGmailEmails } from "~/server/gmail/sync";
+import { gmailClient } from "~/server/gmail/client";
 
 export const gmailRouter = createTRPCRouter({
   /**
@@ -205,5 +206,61 @@ export const gmailRouter = createTRPCRouter({
         emails,
         nextCursor,
       };
+    }),
+
+  sendEmail: protectedProcedure
+    .input(
+      z.object({
+        to: z.array(z.string().email()),
+        cc: z.array(z.string().email()).optional(),
+        bcc: z.array(z.string().email()).optional(),
+        subject: z.string(),
+        text: z.string(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      const gmail = await gmailClient(ctx.session.user.id);
+      if (!gmail) {
+        throw new TRPCError({
+          code: "UNAUTHORIZED",
+          message: "Gmail client not initialized",
+        });
+      }
+
+      // Create email message in base64 format
+      const emailLines = [
+        `To: ${input.to.join(", ")}`,
+        input.cc?.length ? `Cc: ${input.cc.join(", ")}` : "",
+        input.bcc?.length ? `Bcc: ${input.bcc.join(", ")}` : "",
+        "Content-Type: text/plain; charset=utf-8",
+        "MIME-Version: 1.0",
+        `Subject: ${input.subject}`,
+        "",
+        input.text,
+      ].filter(Boolean);
+
+      const email = emailLines.join("\r\n").trim();
+      const encodedEmail = Buffer.from(email).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+      try {
+        const response = await gmail.users.messages.send({
+          userId: "me",
+          requestBody: {
+            raw: encodedEmail,
+          },
+        });
+
+        if (!response.data) {
+          throw new Error("No response data from Gmail API");
+        }
+
+        return response.data;
+      } catch (error) {
+        console.error("Error sending email:", error);
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to send email",
+        });
+      }
     }),
 });

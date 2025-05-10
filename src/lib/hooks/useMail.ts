@@ -5,12 +5,11 @@ import { useMail as useMailContext } from "~/app/_components/dashboard/mail/mail
 import type { Mail } from "~/app/_components/dashboard/mail/types";
 import type { Email, Attachment } from "@prisma/client";
 import { useDebounce } from "./useDebounce";
-import { useMemo, } from "react";
 
 interface UseMailProps {
-  section: string;
-  searchQuery: string;
-  setSearchQuery: (query: string) => void;
+  searchQuery?: string;
+  section?: string;
+  setSearchQuery?: (query: string) => void;
   defaultCollapsed?: boolean;
 }
 
@@ -18,52 +17,57 @@ type EmailWithAttachments = Email & {
   attachments?: Attachment[];
 };
 
-export function useMail({ section, searchQuery, setSearchQuery, defaultCollapsed = false }: UseMailProps) {
-  const [isCollapsed, setIsCollapsed] = React.useState(defaultCollapsed);
+export function useMail(props?: UseMailProps) {
+  const [isCollapsed, setIsCollapsed] = React.useState(props?.defaultCollapsed ?? false);
   const [selectedMailId, setSelectedMailId] = useMailContext();
   const [tabValue, setTabValue] = React.useState("all");
-  const [localSearchQuery, setLocalSearchQuery] = React.useState(searchQuery);
+  const [localSearchQuery, setLocalSearchQuery] = React.useState(props?.searchQuery ?? "");
   const debouncedSearchQuery = useDebounce(localSearchQuery, 300);
 
-  React.useEffect(() => {
-    setSearchQuery(debouncedSearchQuery);
-  }, [debouncedSearchQuery, setSearchQuery]);
+  // Only include search functionality if props are provided
+  const searchProps = React.useMemo(() => props ? {
+    searchQuery: props.searchQuery ?? "",
+    section: props.section ?? "inbox",
+    setSearchQuery: props.setSearchQuery ?? (() => undefined),
+  } : undefined, [props]);
 
-  const { mutate: syncEmails, isPending: isSyncing } = api.gmail.syncEmails.useMutation({
+  React.useEffect(() => {
+    if (searchProps?.setSearchQuery) {
+      searchProps.setSearchQuery(debouncedSearchQuery);
+    }
+  }, [debouncedSearchQuery, searchProps]);
+
+  const { mutate: syncEmailsMutate, isPending: isSyncing } = api.gmail.syncEmails.useMutation({
     onSuccess: () => {
-      console.log("[SYNC] Synced!");
       void refetchMessages();
     },
-    onError: (error) => {
-      console.error("[SYNC] Failed to sync emails:", error);
-    }
   });
 
   React.useEffect(() => {
-    syncEmails();
-  }, [syncEmails]);
+    syncEmailsMutate();
+  }, [syncEmailsMutate]);
 
   const {
     data: infiniteData,
     isLoading: isMessagesLoading,
-    fetchNextPage,
+    fetchNextPage: fetchNextPageData,
     hasNextPage,
-    isFetchingNextPage,
+    isFetchingNextPage: isFetchingNextPageData,
     refetch: refetchMessages,
   } = api.gmail.getInfiniteEmails.useInfiniteQuery(
     {
       limit: 20,
-      query: searchQuery || undefined,
-      labelIds: section ? [section] : undefined,
+      query: searchProps?.searchQuery ?? undefined,
+      labelIds: searchProps?.section ? [searchProps.section] : undefined,
     },
     {
       getNextPageParam: (lastPage) => lastPage.nextCursor,
-      enabled: !!section,
+      enabled: !!searchProps?.section,
       initialCursor: null,
     }
   );
 
-  const emails = useMemo(() => {
+  const emailsData = React.useMemo(() => {
     return infiniteData?.pages.flatMap((page) => page.emails) ?? [];
   }, [infiniteData]);
 
@@ -92,7 +96,7 @@ export function useMail({ section, searchQuery, setSearchQuery, defaultCollapsed
 
       const isRead = !message.labelIds.includes("UNREAD");
 
-      const transformedMessage = {
+      return {
         id: message.id,
         name,
         email,
@@ -117,13 +121,11 @@ export function useMail({ section, searchQuery, setSearchQuery, defaultCollapsed
           cid: att.cid,
         })) ?? [],
       } as Mail;
-
-      return transformedMessage;
     },
     []
   );
 
-  const filteredAndTransformedMessages = emails
+  const filteredAndTransformedMessages = emailsData
     .map(transformMessage)
     .filter((message): message is Mail => message !== null);
 
@@ -146,6 +148,12 @@ export function useMail({ section, searchQuery, setSearchQuery, defaultCollapsed
     ? transformMessage(selectedMessageData as unknown as EmailWithAttachments)
     : null;
 
+  const handleFetchNextPage = async () => {
+    if (hasNextPage) {
+      await fetchNextPageData();
+    }
+  };
+
   return {
     isCollapsed,
     setIsCollapsed,
@@ -156,14 +164,29 @@ export function useMail({ section, searchQuery, setSearchQuery, defaultCollapsed
     localSearchQuery,
     setLocalSearchQuery,
     isSyncing,
-    syncEmails,
+    syncEmails: syncEmailsMutate,
     isMessagesLoading,
     filteredMessagesByTab,
     isSelectedMessageLoading,
     selectedMessage,
     handleMailSelect,
     hasNextPage,
-    isFetchingNextPage,
-    fetchNextPage,
+    isFetchingNextPage: isFetchingNextPageData,
+    fetchNextPage: handleFetchNextPage,
+    ...(searchProps ?? {}),
+  };
+}
+
+export function useComposeMail() {
+  const utils = api.useUtils();
+
+  const sendEmail = api.gmail.sendEmail.useMutation({
+    onSuccess: () => {
+      void utils.gmail.invalidate();
+    },
+  });
+
+  return {
+    sendEmail,
   };
 }
