@@ -49,8 +49,8 @@ export function MailList({
   }, [setSelectedMailId, onSelect]);
 
   return (
-    <ScrollArea className="h-screen">
-      <div className="flex flex-col gap-2 p-4 pt-0">
+    <ScrollArea className="h-[calc(100vh-8rem)]">
+      <div className="flex flex-col gap-2 p-4 pt-0 pb-8">
         {isLoading ? (
           <div className="flex h-32 items-center justify-center">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
