@@ -50,7 +50,7 @@ export function MailList({
 
   return (
     <ScrollArea className="h-[calc(100vh-8rem)]">
-      <div className="flex flex-col gap-2 p-4 pt-0 pb-8">
+      <div className="flex flex-col gap-2 p-4 pt-0 pb-8 pr-6">
         {isLoading ? (
           <div className="flex h-32 items-center justify-center">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -61,7 +61,7 @@ export function MailList({
               key={item.id}
               ref={index === items.length - 1 ? lastItemRef : undefined}
               className={cn(
-                "flex flex-col items-start gap-2 rounded-lg border p-3 text-left text-sm transition-all hover:bg-accent",
+                "flex flex-col items-start gap-2 rounded-lg border p-3 text-left text-sm transition-all hover:bg-accent w-[calc(100%-1.5rem)]",
                 selectedMailId === item.id && "bg-muted"
               )}
               onClick={() => handleSelect(item.id)}
