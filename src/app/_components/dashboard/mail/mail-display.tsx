@@ -216,16 +216,13 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
             )}
           </div>
           <Separator />
-          <div className="flex-1 overflow-y-auto whitespace-pre-wrap p-4 text-sm">
+          <div className="flex-1 overflow-y-auto whitespace-pre-wrap px-4 text-sm">
             {isLoadingHtml ? (
-              <div className="flex items-center justify-center">
+              <div className="flex items-center pt-8 justify-center">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : htmlContent ? (
-              <div
-                className="w-full overflow-x-auto"
-                dangerouslySetInnerHTML={{ __html: htmlContent }}
-              />
+              <SafeHtmlRenderer html={htmlContent} />
             ) : (
               mail.text
             )}
@@ -293,5 +290,15 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
         </div>
       )}
     </div>
+  );
+}
+
+export function SafeHtmlRenderer({ html }: { html: string }) {
+  return (
+    <iframe
+      srcDoc={html}
+      sandbox="allow-same-origin"
+      className="w-full h-full border-none"
+    />
   );
 }

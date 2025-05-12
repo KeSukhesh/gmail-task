@@ -328,8 +328,8 @@ export function Mail({
         </ResizablePanel>
         <ResizableHandle withHandle />
         <ResizablePanel defaultSize={defaultLayout[2]} minSize={30}>
-          <div className="flex h-full flex-col">
-            <div className="flex-1 overflow-auto">
+          <div className="flex h-[100dvh] oveflow-hidden flex-col">
+            <div className="flex-1 overflow-y-auto">
               <MailDisplay
                 mail={selectedMessage}
                 isLoading={isSelectedMessageLoading}
