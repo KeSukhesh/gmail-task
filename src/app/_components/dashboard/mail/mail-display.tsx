@@ -184,7 +184,7 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
       </div>
       <Separator />
       {mail ? (
-        <div className="flex flex-1 flex-col">
+        <div className="flex flex-1 flex-col overflow-y-auto">
           <div className="flex items-start justify-between p-4">
             <div className="flex items-start gap-4">
               <Avatar className="h-10 w-10">
@@ -216,14 +216,14 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
             )}
           </div>
           <Separator />
-          <div className="flex-1 whitespace-pre-wrap p-4 text-sm">
+          <div className="flex-1 overflow-y-auto whitespace-pre-wrap p-4 text-sm">
             {isLoadingHtml ? (
               <div className="flex items-center justify-center">
                 <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               </div>
             ) : htmlContent ? (
               <div
-                className="prose prose-sm max-w-none dark:prose-invert [&_img]:max-w-full [&_img]:h-auto [&_img]:rounded-lg [&_img]:shadow-sm"
+                className="w-full overflow-x-auto"
                 dangerouslySetInnerHTML={{ __html: htmlContent }}
               />
             ) : (

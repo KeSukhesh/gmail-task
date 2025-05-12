@@ -286,7 +286,7 @@ export function Mail({
                 </Button>
               </div>
               <Tabs value={tabValue} onValueChange={setTabValue}>
-                <TabsList>
+                <TabsList className="ml-auto">
                   <TabsTrigger
                     value="all"
                     className="text-zinc-600 dark:text-zinc-200"
@@ -302,30 +302,28 @@ export function Mail({
                 </TabsList>
               </Tabs>
             </div>
-            <div className="flex-1 overflow-y-auto bg-[#F9FAFB]">
-              <div className="bg-[#F9FAFB] p-4 backdrop-blur">
-                <form onSubmit={(e) => e.preventDefault()}>
-                  <div className="relative">
-                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      name="search"
-                      placeholder="Search emails..."
-                      className="pl-8"
-                      value={localSearchQuery}
-                      onChange={(e) => setLocalSearchQuery(e.target.value)}
-                    />
-                  </div>
-                </form>
-              </div>
-              <MailList
-                items={filteredMessagesByTab}
-                isLoading={isMessagesLoading}
-                onSelect={handleMailSelect}
-                hasNextPage={hasNextPage}
-                isFetchingNextPage={isFetchingNextPage}
-                fetchNextPage={fetchNextPage}
-              />
+            <Separator />
+            <div className="bg-[#F9FAFB] p-4">
+              <form>
+                <div className="relative">
+                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search"
+                    className="pl-8"
+                    value={localSearchQuery}
+                    onChange={(e) => setLocalSearchQuery(e.target.value)}
+                  />
+                </div>
+              </form>
             </div>
+            <MailList
+              items={filteredMessagesByTab}
+              isLoading={isMessagesLoading}
+              onSelect={handleMailSelect}
+              hasNextPage={hasNextPage}
+              isFetchingNextPage={isFetchingNextPage}
+              fetchNextPage={fetchNextPage}
+            />
           </div>
         </ResizablePanel>
         <ResizableHandle withHandle />
@@ -340,9 +338,9 @@ export function Mail({
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>
-      <ComposeModal 
-        isOpen={isComposeOpen} 
-        onClose={() => setIsComposeOpen(false)} 
+      <ComposeModal
+        isOpen={isComposeOpen}
+        onClose={() => setIsComposeOpen(false)}
       />
     </TooltipProvider>
   );

@@ -95,7 +95,7 @@ export function useMail(props?: UseMailProps) {
       const email = emailMatch?.[1] ?? from;
 
       const isRead = !message.labelIds.includes("UNREAD");
-
+      console.log("[MESSAGE]", message);
       return {
         id: message.id,
         name,
@@ -153,7 +153,7 @@ export function useMail(props?: UseMailProps) {
       await fetchNextPageData();
     }
   };
-
+  console.log("[MESSAGE]", selectedMessage);
   return {
     isCollapsed,
     setIsCollapsed,

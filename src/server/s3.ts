@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 
 function createS3Client() {
   const region = process.env.AWS_REGION;
@@ -39,4 +39,19 @@ export async function uploadToS3(key: string, content: string): Promise<string> 
     console.error("S3 upload error:", error);
     throw new Error("Failed to upload to S3");
   }
+}
+
+export async function fetchS3Html(key: string): Promise<string> {
+  const bucketName = process.env.AWS_BUCKET_NAME!;
+  const command = new GetObjectCommand({ Bucket: bucketName, Key: key });
+
+  const response = await s3.send(command);
+  const stream = response.Body as NodeJS.ReadableStream;
+
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) {
+    chunks.push(Buffer.from(chunk));
+  }
+
+  return Buffer.concat(chunks).toString("utf-8");
 }

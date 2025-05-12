@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { createTRPCRouter, protectedProcedure } from "~/server/api/trpc";
 import { syncGmailEmails } from "~/server/gmail/sync";
 import MailComposer from "nodemailer/lib/mail-composer";
+import { fetchS3Html } from "~/server/s3";
 
 export const gmailRouter = createTRPCRouter({
   /**
@@ -291,5 +292,11 @@ export const gmailRouter = createTRPCRouter({
           message: "Failed to send email",
         });
       }
+    }),
+    getEmailHtml: protectedProcedure
+    .input(z.object({ key: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const html = await fetchS3Html(input.key);
+      return { html };
     }),
 });

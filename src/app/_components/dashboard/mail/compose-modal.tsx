@@ -295,3 +295,4 @@ export function ComposeModal({ isOpen, onClose }: ComposeModalProps) {
     </Dialog>
   );
 }
+ 

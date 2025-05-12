@@ -2,29 +2,17 @@ import { db } from "~/server/db";
 import { gmailClient } from "~/server/gmail/client";
 import { simpleParser } from "mailparser";
 import { uploadToS3 } from "~/server/s3";
+import type { gmail_v1 } from "googleapis";
 
-export async function syncGmailEmails(userId: string) {
-  const gmail = await gmailClient(userId);
+type GmailMessage = NonNullable<gmail_v1.Schema$Message>;
 
-  console.log(`[SYNC] Starting Gmail sync for user: ${userId}`);
-
-  // get user's last internal date checkpoint (TODO: change to next page token from google api)
-  const checkpoint = await db.emailSyncCheckpoint.findUnique({
-    where: { userId },
-  });
-
-  const lastInternalDate = checkpoint?.lastInternalDate;
-  console.log(`[SYNC] Last internal date checkpoint: ${lastInternalDate?.toISOString() ?? "None"}`);
-
-  // TODO: only getting inbox and sent messages, need to get all messages for all labels
-  const fetchMessages = async (labelId: string) => {
+async function fullSync(gmail: gmail_v1.Gmail, userId: string, lastInternalDate?: Date) {
+  const fetchMessages = async (labelId: string): Promise<GmailMessage[]> => {
     const { data } = await gmail.users.messages.list({
       userId: "me",
       maxResults: 50,
       labelIds: [labelId],
-      q: lastInternalDate
-        ? `after:${Math.floor(lastInternalDate.getTime() / 1000)}`
-        : undefined,
+      q: lastInternalDate ? `after:${Math.floor(lastInternalDate.getTime() / 1000)}` : undefined,
     });
     return data.messages ?? [];
   };
@@ -34,22 +22,74 @@ export async function syncGmailEmails(userId: string) {
     fetchMessages("SENT"),
   ]);
 
-  const messages = [...inboxMessages, ...sentMessages];
-  if (messages.length === 0) {
+  return [...inboxMessages, ...sentMessages];
+}
+
+export async function syncGmailEmails(userId: string) {
+  const gmail = await gmailClient(userId);
+  console.log(`[SYNC] Starting Gmail sync for user: ${userId}`);
+
+  const checkpoint = await db.emailSyncCheckpoint.findUnique({ where: { userId } });
+  const { lastHistoryId, lastInternalDate } = checkpoint ?? {};
+
+  let messagesToProcess: GmailMessage[] = [];
+
+  if (lastHistoryId) {
+    console.log(`[SYNC] Using incremental sync from historyId: ${lastHistoryId}`);
+    try {
+      const res = await gmail.users.history.list({
+        userId: "me",
+        startHistoryId: lastHistoryId,
+        historyTypes: ["messageAdded"],
+        maxResults: 1000,
+      });
+
+      if (res.data.history) {
+        res.data.history.forEach((history) => {
+          history.messagesAdded?.forEach((msg) => {
+            if (msg.message) messagesToProcess.push(msg.message);
+          });
+        });
+
+        const latestHistoryId = res.data.historyId ?? res.data.history?.[res.data.history.length - 1]?.id;
+        if (latestHistoryId) {
+          await db.emailSyncCheckpoint.upsert({
+            where: { userId },
+            update: { lastHistoryId: latestHistoryId.toString() },
+            create: { userId, lastHistoryId: latestHistoryId.toString() },
+          });
+        }
+      } else {
+        console.log("[SYNC] No new history updates found.");
+        return;
+      }
+    } catch (err) {
+      if (err instanceof Error && 'code' in err && err.code === 404) {
+        console.warn("[SYNC] Invalid historyId, falling back to full sync.");
+        messagesToProcess = await fullSync(gmail, userId, lastInternalDate ?? undefined);
+      } else {
+        console.error("[SYNC] History sync failed:", err);
+        return;
+      }
+    }
+  } else {
+    console.log("[SYNC] No historyId found, performing full sync.");
+    messagesToProcess = await fullSync(gmail, userId, lastInternalDate ?? undefined);
+  }
+
+  if (messagesToProcess.length === 0) {
     console.log("[SYNC] No new messages to sync.");
     return;
   }
 
   let newestInternalDate: Date | undefined = undefined;
 
-  for (const message of messages) {
-    const messageId = message.id;
+  for (const msg of messagesToProcess) {
+    const messageId = msg.id;
     if (!messageId) continue;
 
     try {
-      const exists = await db.email.findUnique({
-        where: { id: messageId },
-      });
+      const exists = await db.email.findUnique({ where: { id: messageId } });
       if (exists) continue;
 
       const fullMessage = await gmail.users.messages.get({
@@ -59,35 +99,28 @@ export async function syncGmailEmails(userId: string) {
       });
 
       if (!fullMessage.data.raw) continue;
+
       const base64 = fullMessage.data.raw.replace(/-/g, '+').replace(/_/g, '/');
       const raw = Buffer.from(base64, 'base64');
       const parsed = await simpleParser(raw);
-      console.log("parsed", parsed);
 
-      // html to s3
-      let htmlUrl: string | null = null;
-      if (parsed.html) {
-        try {
-          htmlUrl = await uploadToS3(`emails/${messageId}.html`, parsed.html);
-        } catch (error) {
-          console.error(`[SYNC] Failed to upload HTML for ${messageId}:`, error);
+      // Fallback logic for extracting HTML
+      let resolvedHtml = parsed.html ?? parsed.textAsHtml ?? null;
+      if (!resolvedHtml && parsed.multipart && parsed.parts) {
+        const htmlPart = parsed.parts.find(part => part.contentType === "text/html");
+        if (htmlPart && typeof htmlPart.content === "string") {
+          resolvedHtml = htmlPart.content;
         }
       }
-      const parser = await simpleParser(raw);
-      const attachments = parser.attachments;
-      console.log(attachments);
 
-      // attachments to s3 and create attachment records
       const attachmentRecords = await Promise.all(
-        attachments.map(async (attachment) => {
+        (parsed.attachments ?? []).map(async (attachment) => {
           if (!attachment.content || !attachment.filename) return null;
-
           try {
             const url = await uploadToS3(
               `attachments/${messageId}/${attachment.filename}`,
               attachment.content.toString('base64')
             );
-
             return {
               id: `${messageId}-${attachment.filename}`,
               filename: attachment.filename,
@@ -101,9 +134,38 @@ export async function syncGmailEmails(userId: string) {
             return null;
           }
         })
-      );
+      ).then((records) => records.filter((r): r is NonNullable<typeof r> => r !== null));
 
-      // persist all to db
+      let processedHtml = resolvedHtml;
+      if (processedHtml && attachmentRecords.length > 0) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(processedHtml, "text/html");
+        const images = doc.getElementsByTagName("img");
+
+        for (const img of Array.from(images)) {
+          const src = img.getAttribute("src");
+          if (src?.startsWith("cid:")) {
+            const cid = src.replace("cid:", "");
+            const matchingAttachment = attachmentRecords.find(a => a.cid === cid);
+            if (matchingAttachment) {
+              img.setAttribute("src", matchingAttachment.url);
+            }
+          }
+        }
+
+        processedHtml = doc.documentElement.outerHTML;
+      }
+
+      let htmlUrl: string | null = null;
+      if (processedHtml) {
+        try {
+          htmlUrl = await uploadToS3(`emails/${messageId}.html`, processedHtml);
+          console.log("BABABOOY", processedHtml);
+        } catch (error) {
+          console.error(`[SYNC] Failed to upload HTML for ${messageId}:`, error);
+        }
+      }
+
       await db.email.create({
         data: {
           id: messageId,
@@ -117,15 +179,12 @@ export async function syncGmailEmails(userId: string) {
           threadId: fullMessage.data.threadId ?? null,
           htmlUrl,
           text: parsed.text ?? null,
-          attachments: {
-            create: attachmentRecords.filter((record): record is NonNullable<typeof record> => record !== null)
-          }
+          attachments: { create: attachmentRecords },
         },
       });
 
       console.log(`[SYNC] Synced email ${messageId}`);
 
-      // update checkpoint (TODO: change to next page token from google api)
       const parsedDate = parsed.date;
       if (parsedDate && (!newestInternalDate || parsedDate > newestInternalDate)) {
         newestInternalDate = parsedDate;
@@ -135,14 +194,12 @@ export async function syncGmailEmails(userId: string) {
     }
   }
 
-  // update checkpoint (TODO: change to next page token from google api)
   if (newestInternalDate) {
     await db.emailSyncCheckpoint.upsert({
       where: { userId },
       update: { lastInternalDate: newestInternalDate },
       create: { userId, lastInternalDate: newestInternalDate },
     });
-
     console.log(`[SYNC] Updated sync checkpoint to ${newestInternalDate.toISOString()}`);
   }
 

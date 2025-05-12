@@ -9,7 +9,13 @@ declare module 'mailparser' {
     } | null;
     text?: string | null;
     html?: string | null;
+    textAsHtml?: string | null;
     date?: Date | null;
+    multipart?: boolean;
+    parts?: Array<{
+      contentType: string;
+      content: string | Buffer;
+    }>;
   }
 
   export function simpleParser(source: Buffer): Promise<ParsedMail>;
