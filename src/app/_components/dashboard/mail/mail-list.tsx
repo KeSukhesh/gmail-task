@@ -47,7 +47,6 @@ export function MailList({
     setSelectedMailId({ selected: mailId });
     onSelect?.(mailId);
   }, [setSelectedMailId, onSelect]);
-
   return (
     <ScrollArea className="h-[calc(100vh-8rem)]">
       <div className="flex flex-col gap-2 pl-4 pt-0">

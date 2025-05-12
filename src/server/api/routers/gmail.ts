@@ -204,7 +204,10 @@ export const gmailRouter = createTRPCRouter({
       }
 
       return {
-        emails,
+        emails: emails.map(email => ({
+          ...email,
+          internalDate: email.internalDate?.toISOString() ?? null,
+        })),
         nextCursor,
       };
     }),
@@ -295,7 +298,7 @@ export const gmailRouter = createTRPCRouter({
     }),
     getEmailHtml: protectedProcedure
     .input(z.object({ key: z.string() }))
-    .query(async ({ ctx, input }) => {
+    .query(async ({ input }) => {
       const html = await fetchS3Html(input.key);
       return { html };
     }),

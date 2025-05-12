@@ -5,11 +5,12 @@ import { uploadToS3 } from "~/server/s3";
 import type { gmail_v1 } from "googleapis";
 
 type GmailMessage = NonNullable<gmail_v1.Schema$Message>;
+type GmailListResponse = gmail_v1.Schema$ListMessagesResponse;
 
 // -------------------- FULL SYNC WITH PAGINATION --------------------
-async function fullSync(gmail: gmail_v1.Gmail, userId: string) {
+async function fullSync(gmail: gmail_v1.Gmail) {
   const fetchMessages = async (labelId: string): Promise<GmailMessage[]> => {
-    let messages: GmailMessage[] = [];
+    const messages: GmailMessage[] = [];
     let pageToken: string | undefined = undefined;
 
     do {
@@ -18,13 +19,13 @@ async function fullSync(gmail: gmail_v1.Gmail, userId: string) {
         labelIds: [labelId],
         maxResults: 100,
         pageToken,
-      });
+      }) as { data: GmailListResponse };
 
       if (data.messages) {
         messages.push(...data.messages);
       }
 
-      pageToken = data.nextPageToken || undefined;
+      pageToken = data.nextPageToken ?? undefined;
     } while (pageToken);
 
     console.log(`[SYNC] Fetched ${messages.length} messages for label ${labelId}`);
@@ -78,10 +79,10 @@ export async function syncGmailEmails(userId: string) {
         console.log("[SYNC] No new history updates found.");
         return;
       }
-    } catch (err: any) {
-      if (err.code === 404) {
+    } catch (err) {
+      if (err instanceof Error && 'code' in err && err.code === 404) {
         console.warn("[SYNC] Invalid historyId, falling back to full sync.");
-        messagesToProcess = await fullSync(gmail, userId);
+        messagesToProcess = await fullSync(gmail);
       } else {
         console.error("[SYNC] History sync failed:", err);
         return;
@@ -89,7 +90,7 @@ export async function syncGmailEmails(userId: string) {
     }
   } else {
     console.log("[SYNC] No historyId found, performing full sync.");
-    messagesToProcess = await fullSync(gmail, userId);
+    messagesToProcess = await fullSync(gmail);
   }
 
   if (messagesToProcess.length === 0) {
@@ -121,7 +122,7 @@ export async function syncGmailEmails(userId: string) {
       const raw = Buffer.from(base64, 'base64');
       const parsed = await simpleParser(raw);
 
-      let resolvedHtml = parsed.html ?? parsed.textAsHtml ?? null;
+      const resolvedHtml = parsed.html ?? parsed.textAsHtml ?? null;
 
       const attachmentRecords = await Promise.all(
         (parsed.attachments ?? []).map(async (attachment) => {

@@ -20,7 +20,6 @@ function createS3Client() {
 
 const s3 = createS3Client();
 
-
 export async function uploadToS3(key: string, content: string): Promise<string> {
   const bucketName = process.env.AWS_BUCKET_NAME!;
   const region = process.env.AWS_REGION!;
