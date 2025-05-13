@@ -13,7 +13,8 @@ interface UseMailProps {
   defaultCollapsed?: boolean;
 }
 
-type EmailWithAttachments = Email & {
+type EmailWithAttachments = Omit<Email, 'internalDate'> & {
+  internalDate: string | null;
   attachments?: Attachment[];
 };
 
@@ -85,17 +86,15 @@ export function useMail(props?: UseMailProps) {
 
       const labelNames = message.labelIds.map((id) => labelMap[id] ?? id);
       const from = message.from ?? "";
-      // Extract name and email from the "From" field
       const nameRegex = /^"?([^"<]+)"?\s*</;
       const emailRegex = /<([^>]+)>/;
       const nameMatch = nameRegex.exec(from);
       const emailMatch = emailRegex.exec(from);
-      // Clean up the name by removing quotes and trimming
       const name = nameMatch?.[1]?.replace(/^"|"$/g, '').trim() ?? from;
       const email = emailMatch?.[1] ?? from;
 
       const isRead = !message.labelIds.includes("UNREAD");
-      console.log("[MESSAGE]", message);
+
       return {
         id: message.id,
         name,
