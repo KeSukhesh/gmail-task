@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Search, RefreshCw, Plus } from "lucide-react";
+import { Search, RefreshCw, Plus, List, MessageSquare } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { Input } from "~/app/_components/ui/input";
 import {
@@ -24,6 +24,7 @@ import { signOut, useSession } from "next-auth/react";
 import { useMail } from "~/lib/hooks/useMail";
 import { Separator } from "~/app/_components/ui/separator";
 import { ComposeModal } from "./compose-modal";
+import { Switch } from "~/app/_components/ui/switch";
 
 interface MailProps {
   defaultLayout?: number[];
@@ -47,6 +48,7 @@ export function Mail({
   setSearchQuery,
 }: MailProps) {
   const { data: session } = useSession();
+  const [isThreadView, setIsThreadView] = React.useState(true);
   const {
     isCollapsed,
     setIsCollapsed,
@@ -304,17 +306,28 @@ export function Mail({
             </div>
             <Separator />
             <div className="bg-[#F9FAFB] p-4">
-              <form>
-                <div className="relative">
-                  <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search"
-                    className="pl-8"
-                    value={localSearchQuery}
-                    onChange={(e) => setLocalSearchQuery(e.target.value)}
+              <div className="flex items-center gap-2">
+                <form className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search"
+                      className="pl-8"
+                      value={localSearchQuery}
+                      onChange={(e) => setLocalSearchQuery(e.target.value)}
+                    />
+                  </div>
+                </form>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">
+                    {isThreadView ? "Thread View" : "Message View"}
+                  </span>
+                  <Switch
+                    checked={isThreadView}
+                    onCheckedChange={setIsThreadView}
                   />
                 </div>
-              </form>
+              </div>
             </div>
             <MailList
               items={filteredMessagesByTab}
@@ -323,6 +336,7 @@ export function Mail({
               hasNextPage={hasNextPage}
               isFetchingNextPage={isFetchingNextPage}
               fetchNextPage={fetchNextPage}
+              isThreadView={isThreadView}
             />
           </div>
         </ResizablePanel>

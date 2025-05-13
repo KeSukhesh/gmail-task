@@ -16,6 +16,7 @@ interface MailListProps {
   hasNextPage?: boolean;
   isFetchingNextPage?: boolean;
   fetchNextPage?: () => void;
+  isThreadView?: boolean;
 }
 
 export function MailList({
@@ -24,10 +25,39 @@ export function MailList({
   onSelect,
   hasNextPage,
   isFetchingNextPage,
-  fetchNextPage
+  fetchNextPage,
+  isThreadView = true
 }: MailListProps) {
   const [selectedMailId, setSelectedMailId] = useMail();
   const observer = useRef<IntersectionObserver | undefined>(undefined);
+
+  // Group messages by thread if in thread view
+  const groupedMessages = React.useMemo(() => {
+    if (!isThreadView) return items;
+
+    const threadMap = new Map<string, Mail[]>();
+    items.forEach((mail) => {
+      const threadId = mail.threadId ?? mail.id;
+      const thread = threadMap.get(threadId) ?? [];
+      thread.push(mail);
+      threadMap.set(threadId, thread);
+    });
+
+    // Sort threads by the most recent message
+    return Array.from(threadMap.values())
+      .map(thread => {
+        if (!thread[0]) return null;
+        return {
+          ...thread[0],
+          text: thread.map(m => m.text ?? '').join('\n\n---\n\n'),
+          date: thread[0].date ?? new Date().toISOString(),
+          snippet: thread.map(m => m.snippet ?? '').join(' | ')
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [items, isThreadView]);
+
   const lastItemRef = useCallback((node: HTMLButtonElement | null) => {
     if (isLoading) return;
     if (observer.current) observer.current.disconnect();
@@ -47,6 +77,7 @@ export function MailList({
     setSelectedMailId({ selected: mailId });
     onSelect?.(mailId);
   }, [setSelectedMailId, onSelect]);
+
   return (
     <ScrollArea className="h-[calc(100vh-8rem)]">
       <div className="flex flex-col gap-2 pl-4 pt-0">
@@ -55,10 +86,10 @@ export function MailList({
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          items.map((item, index) => (
+          groupedMessages.map((item, index) => (
             <button
               key={item.id}
-              ref={index === items.length - 1 ? lastItemRef : undefined}
+              ref={index === groupedMessages.length - 1 ? lastItemRef : undefined}
               className={cn(
                 "flex flex-col items-start gap-2 rounded-lg border p-3 text-left text-sm transition-all hover:bg-accent w-[calc(100%-1.5rem)]",
                 selectedMailId === item.id && "bg-muted"
@@ -87,11 +118,11 @@ export function MailList({
                 <div className="text-xs font-medium">{item.subject}</div>
               </div>
               <div className="line-clamp-2 text-xs text-muted-foreground">
-                {item.text.substring(0, 300)}
+                {item.snippet ?? ''}
               </div>
-              {item.labels.length ? (
+              {(item.labels ?? []).length > 0 ? (
                 <div className="flex items-center gap-2">
-                  {item.labels.map((label) => (
+                  {(item.labels ?? []).map((label) => (
                     <Badge key={label} variant={getBadgeVariantFromLabel(label)}>
                       {label}
                     </Badge>
