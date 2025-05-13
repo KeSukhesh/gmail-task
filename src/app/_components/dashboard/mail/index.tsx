@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Search, RefreshCw, Plus, List, MessageSquare } from "lucide-react";
+import { Search, RefreshCw, Plus } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { Input } from "~/app/_components/ui/input";
 import {

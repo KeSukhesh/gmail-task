@@ -225,6 +225,7 @@ export const gmailRouter = createTRPCRouter({
         text: z.string(),
         html: z.string().optional(),
         inReplyTo: z.string().optional(),
+        threadId: z.string().optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -256,6 +257,9 @@ export const gmailRouter = createTRPCRouter({
           text: input.text,
           html: input.html,
           inReplyTo: input.inReplyTo,
+          headers: input.inReplyTo ? {
+            'References': input.inReplyTo,
+          } : undefined,
           textEncoding: "base64",
         });
 
@@ -281,6 +285,7 @@ export const gmailRouter = createTRPCRouter({
           userId: "me",
           requestBody: {
             raw: encodedEmail,
+            threadId: input.threadId,
           },
         });
 

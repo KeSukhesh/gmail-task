@@ -37,6 +37,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "~/app/_components/ui/avatar
 import type { Mail } from "./types";
 import { safeFormat } from "./utils";
 import { useMailDisplay } from "~/lib/hooks/useMailDisplay";
+import { api } from "~/trpc/react";
+import { useRef } from "react";
 
 interface MailDisplayProps {
   mail: Mail | null;
@@ -53,6 +55,13 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
     getInitials,
   } = useMailDisplay({ mail });
 
+  const sendEmail = api.gmail.sendEmail.useMutation();
+  const today = new Date();
+  const replyTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const handleReplyButtonClick = () => {
+    replyTextareaRef.current?.focus();
+  };
+
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -60,8 +69,6 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
       </div>
     );
   }
-
-  const today = new Date();
   console.log("[DEBUG] Mail:", mail);
   return (
     <div className="flex h-full flex-col">
@@ -140,7 +147,7 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
         <div className="ml-auto flex items-center gap-2">
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" disabled={!mail}>
+              <Button variant="ghost" size="icon" disabled={!mail} onClick={handleReplyButtonClick}>
                 <Reply className="h-4 w-4" />
                 <span className="sr-only">Reply</span>
               </Button>
@@ -149,7 +156,7 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" disabled={!mail}>
+              <Button variant="ghost" size="icon" disabled={!mail} onClick={handleReplyButtonClick}>
                 <ReplyAll className="h-4 w-4" />
                 <span className="sr-only">Reply all</span>
               </Button>
@@ -262,9 +269,26 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
           </div>
           <Separator className="mt-auto" />
           <div className="p-4">
-            <form onSubmit={(e) => e.preventDefault()}>
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              if (!replyContent.trim() || !mail) return;
+
+              try {
+                await sendEmail.mutateAsync({
+                  to: [mail.email],
+                  subject: `Re: ${mail.subject}`,
+                  text: replyContent,
+                  inReplyTo: mail.id,
+                  threadId: mail.threadId ?? undefined,
+                });
+                setReplyContent(""); // Clear after send
+              } catch (error) {
+                console.error("Failed to send reply:", error);
+              }
+            }}>
               <div className="grid gap-4">
                 <Textarea
+                  ref={replyTextareaRef}
                   className="p-4"
                   placeholder={`Reply to "${mail.name}"...`}
                   value={replyContent}
@@ -275,9 +299,9 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
                     type="submit"
                     size="sm"
                     className="ml-auto"
-                    disabled={!replyContent.trim()}
+                    disabled={!replyContent.trim() || sendEmail.isPending}
                   >
-                    Send
+                    {sendEmail.isPending ? "Sending..." : "Send"}
                   </Button>
                 </div>
               </div>
