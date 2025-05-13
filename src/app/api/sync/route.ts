@@ -2,7 +2,6 @@ import { db } from "~/server/db";
 import { syncGmailEmails } from "~/server/gmail/sync";
 import { NextResponse } from "next/server";
 
-// Endpoint for cron job to sync emails for all users
 export async function GET(request: Request) {
   const authHeader = request.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
@@ -17,7 +16,6 @@ export async function GET(request: Request) {
   }
 
   try {
-    // get all users with google accounts
     const users = await db.user.findMany({
       where: {
         accounts: {
@@ -28,20 +26,20 @@ export async function GET(request: Request) {
       },
     });
 
-    const results = await Promise.allSettled(
+    const results = await Promise.all(
       users.map(async (user) => {
         try {
           await syncGmailEmails(user.id);
           return { userId: user.id, status: "success" };
         } catch (error) {
           console.error(`Failed to sync emails for user ${user.id}:`, error);
-          return { userId: user.id, status: "error", error };
+          return { userId: user.id, status: "error", error: String(error) };
         }
       })
     );
 
-    const successful = results.filter((r) => r.status === "fulfilled").length;
-    const failed = results.filter((r) => r.status === "rejected").length;
+    const successful = results.filter(r => r.status === "success").length;
+    const failed = results.length - successful;
 
     return NextResponse.json({
       success: true,
@@ -52,6 +50,7 @@ export async function GET(request: Request) {
       },
       details: results,
     });
+
   } catch (error) {
     console.error("Failed to sync emails:", error);
     return NextResponse.json({ error: "Failed to sync" }, { status: 500 });

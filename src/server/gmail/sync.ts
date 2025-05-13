@@ -5,9 +5,10 @@ import { uploadToS3 } from "~/server/s3";
 import type { gmail_v1 } from "googleapis";
 
 type GmailMessage = NonNullable<gmail_v1.Schema$Message>;
-type GmailThread = NonNullable<gmail_v1.Schema$Thread>;
 type GmailListResponse = gmail_v1.Schema$ListMessagesResponse;
 type GmailThreadResponse = gmail_v1.Schema$Thread;
+
+const labelsToSync = ["INBOX", "SENT"];
 
 export async function syncGmailEmails(userId: string) {
   const gmail = await gmailClient(userId);
@@ -15,7 +16,6 @@ export async function syncGmailEmails(userId: string) {
 
   const checkpoint = await db.emailSyncCheckpoint.findUnique({ where: { userId } });
   const { lastHistoryId } = checkpoint ?? {};
-  const messagesToProcess: GmailMessage[] = [];
 
   const processMessage = async (msg: GmailMessage) => {
     const messageId = msg.id;
@@ -135,7 +135,6 @@ export async function syncGmailEmails(userId: string) {
 
     } else {
       console.log("[SYNC] No historyId found, performing full sync.");
-      const labelsToSync = ["INBOX", "SENT"] as const;
       for (const label of labelsToSync) {
         let pageToken: string | undefined = undefined;
         do {
