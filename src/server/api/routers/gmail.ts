@@ -79,50 +79,53 @@ export const gmailRouter = createTRPCRouter({
    * Mark an email as read
    */
   markAsRead: protectedProcedure
-    .input(
-      z.object({
-        messageId: z.string(),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      const currentEmail = await ctx.db.email.findUnique({
-        where: {
-          id: input.messageId,
-          userId: ctx.session.user.id,
-        },
-      });
+  .input(z.object({ messageId: z.string() }))
+  .mutation(async ({ ctx, input }) => {
+    const currentEmail = await ctx.db.email.findUnique({
+      where: {
+        id: input.messageId,
+        userId: ctx.session.user.id,
+      },
+    });
 
-      if (!currentEmail) {
-        throw new TRPCError({ code: "NOT_FOUND" });
+    if (!currentEmail) {
+      throw new TRPCError({ code: "NOT_FOUND" });
+    }
+
+    if (currentEmail.isRead) {
+      return { success: true };  // Already read, nothing to do
+    }
+
+    // Update local database
+    await ctx.db.email.update({
+      where: {
+        id: input.messageId,
+        userId: ctx.session.user.id,
+      },
+      data: {
+        isRead: true,
+        labelIds: currentEmail.labelIds.filter((label) => label !== "UNREAD"),
+      },
+    });
+
+    // Attempt Gmail API update if context is available
+    if (ctx.gmail) {
+      try {
+        await ctx.gmail.users.messages.modify({
+          userId: "me",
+          id: currentEmail.id,  // using the id field which stores the Gmail message ID
+          requestBody: {
+            removeLabelIds: ["UNREAD"],
+          },
+        });
+      } catch (error) {
+        console.error("Failed to mark email as read in Gmail:", error);
       }
+    }
 
-      await ctx.db.email.update({
-        where: {
-          id: input.messageId,
-          userId: ctx.session.user.id,
-        },
-        data: {
-          isRead: true,
-          labelIds: currentEmail.labelIds.filter((label) => label !== "UNREAD"),
-        },
-      });
+    return { success: true };
+  }),
 
-      if (ctx.gmail) {
-        try {
-          await ctx.gmail.users.messages.modify({
-            userId: "me",
-            id: input.messageId,
-            requestBody: {
-              removeLabelIds: ["UNREAD"],
-            },
-          });
-        } catch (error) {
-          console.error("Failed to mark email as read in Gmail:", error);
-        }
-      }
-
-      return { success: true };
-    }),
 
   /**
    * Delete an email from the database
