@@ -161,6 +161,18 @@ export async function syncGmailEmails(userId: string) {
           pageToken = listRes.data.nextPageToken ?? undefined;
         } while (pageToken);
       }
+
+      const profileRes = await gmail.users.getProfile({ userId: "me" });
+      const latestHistoryId = profileRes.data.historyId;
+
+      if (latestHistoryId) {
+        await db.emailSyncCheckpoint.upsert({
+          where: { userId },
+          update: { lastHistoryId: latestHistoryId.toString() },
+          create: { userId, lastHistoryId: latestHistoryId.toString() },
+        });
+        console.log(`[SYNC] Set initial historyId checkpoint to ${latestHistoryId}`);
+      }
     }
 
   } catch (error) {
