@@ -236,22 +236,22 @@ export const gmailRouter = createTRPCRouter({
           message: "Gmail client not initialized",
         });
       }
-  
+
       if (!ctx.session.user.email) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "User email is required",
         });
       }
-  
+
       try {
         const from = ctx.session.user.name
           ? `${ctx.session.user.name} <${ctx.session.user.email}>`
           : ctx.session.user.email;
-  
+
         // 🔄 Build proper references chain if replying
         let references: string[] | undefined = input.references;
-  
+
         if (input.inReplyTo) {
           const parentEmail = await ctx.db.email.findFirst({
             where: {
@@ -259,13 +259,13 @@ export const gmailRouter = createTRPCRouter({
               userId: ctx.session.user.id,
             },
           });
-  
+
           const existingReferences = parentEmail?.references?.split(" ") ?? [];
           const parentMessageId = parentEmail?.messageIdHeader;
-  
+
           references = [...existingReferences, parentMessageId].filter((ref): ref is string => typeof ref === 'string');
         }
-  
+
         const mail = new MailComposer({
           from,
           to: input.to,
@@ -284,7 +284,7 @@ export const gmailRouter = createTRPCRouter({
               : {}),
           },
         });
-  
+
         const message = await new Promise<Buffer>((resolve, reject) => {
           const compiled = mail.compile();
           if (!compiled) {
@@ -299,9 +299,9 @@ export const gmailRouter = createTRPCRouter({
             }
           });
         });
-  
+
         const encodedEmail = message.toString("base64url");
-  
+
         const response = await ctx.gmail.users.messages.send({
           userId: "me",
           requestBody: {
@@ -309,13 +309,13 @@ export const gmailRouter = createTRPCRouter({
             threadId: input.threadId,
           },
         });
-  
+
         if (!response.data) {
           throw new Error("No response data from Gmail API");
         }
-  
+
         await syncGmailEmails(ctx.session.user.id);
-  
+
         return response.data;
       } catch (error) {
         console.error(
@@ -328,7 +328,7 @@ export const gmailRouter = createTRPCRouter({
         });
       }
     }),
-  
+
     getEmailHtml: protectedProcedure
     .input(z.object({ key: z.string() }))
     .query(async ({ input }) => {

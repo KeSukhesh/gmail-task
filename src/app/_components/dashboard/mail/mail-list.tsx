@@ -1,13 +1,10 @@
 "use client";
 
-import { cn } from "~/lib/utils";
-import { Badge } from "~/app/_components/ui/badge";
-import { ScrollArea } from "~/app/_components/ui/scroll-area";
 import type { Mail } from "./types";
 import { useMail } from "./mail-context";
-import { safeFormatDistance } from "./utils";
 import { Loader2 } from "lucide-react";
 import React, { useRef, useCallback } from "react";
+import { MailCard } from "./mail-card";
 
 interface MailListProps {
   items: Mail[];
@@ -79,57 +76,21 @@ export function MailList({
   }, [setSelectedMailId, onSelect]);
 
   return (
-    <ScrollArea className="h-[calc(100vh-8rem)]">
-      <div className="flex flex-col gap-2 p-4 overflow-hidden">
+    // <ScrollArea className="h-full max-w-full"> // ScrollArea removed
+      <div className="flex flex-col gap-2 p-4 w-full h-full overflow-y-auto">
         {isLoading ? (
           <div className="flex h-32 items-center justify-center">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : (
           groupedMessages.map((item, index) => (
-            <button
-              key={item.id}
+            <MailCard
+              key={item.id} // Use item.id for the key
               ref={index === groupedMessages.length - 1 ? lastItemRef : undefined}
-              className={cn(
-                "flex flex-col items-start gap-2 rounded-lg border p-3 text-left text-sm transition-all hover:bg-accent w-full overflow-hidden",
-                selectedMailId === item.id && "bg-muted"
-              )}
-              onClick={() => handleSelect(item.id)}
-            >
-              <div className="flex w-full flex-col gap-1 min-w-0">
-                <div className="flex items-center w-full">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="font-semibold truncate">{item.name}</div>
-                    {!item.read && (
-                      <span className="flex h-2 w-2 rounded-full bg-blue-600 flex-shrink-0" />
-                    )}
-                  </div>
-                  <div
-                    className={cn(
-                      "ml-auto text-xs flex-shrink-0",
-                      selectedMailId === item.id
-                        ? "text-foreground"
-                        : "text-muted-foreground"
-                    )}
-                  >
-                    {safeFormatDistance(item.date)}
-                  </div>
-                </div>
-                <div className="text-xs font-medium truncate">{item.subject}</div>
-              </div>
-              <div className="line-clamp-2 text-xs text-muted-foreground w-full">
-                {item.snippet ?? ''}
-              </div>
-              {(item.labels ?? []).length > 0 ? (
-                <div className="flex items-center gap-2 flex-wrap">
-                  {(item.labels ?? []).map((label) => (
-                    <Badge key={label} variant={getBadgeVariantFromLabel(label)}>
-                      {label}
-                    </Badge>
-                  ))}
-                </div>
-              ) : null}
-            </button>
+              mail={item}
+              isSelected={selectedMailId === item.id}
+              onSelect={() => handleSelect(item.id)}
+            />
           ))
         )}
         {isFetchingNextPage && (
@@ -138,18 +99,5 @@ export function MailList({
           </div>
         )}
       </div>
-    </ScrollArea>
   );
-}
-
-function getBadgeVariantFromLabel(label: string) {
-  if (["work"].includes(label.toLowerCase())) {
-    return "default";
-  }
-
-  if (["personal"].includes(label.toLowerCase())) {
-    return "outline";
-  }
-
-  return "secondary";
 }

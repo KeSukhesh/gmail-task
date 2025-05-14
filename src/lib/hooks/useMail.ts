@@ -25,7 +25,6 @@ export function useMail(props?: UseMailProps) {
   const [localSearchQuery, setLocalSearchQuery] = React.useState(props?.searchQuery ?? "");
   const debouncedSearchQuery = useDebounce(localSearchQuery, 300);
 
-  // Only include search functionality if props are provided
   const searchProps = React.useMemo(() => props ? {
     searchQuery: props.searchQuery ?? "",
     section: props.section ?? "inbox",
@@ -68,15 +67,6 @@ export function useMail(props?: UseMailProps) {
     }
   );
 
-  const emailsData = React.useMemo(() => {
-    return infiniteData?.pages.flatMap((page) => page.emails) ?? [];
-  }, [infiniteData]);
-
-  const { data: selectedMessageData, isLoading: isSelectedMessageLoading } = api.gmail.getMessage.useQuery(
-    selectedMailId ? { messageId: selectedMailId, format: "full" } : skipToken,
-    { enabled: !!selectedMailId }
-  );
-
   const transformMessage = React.useCallback(
     (message: EmailWithAttachments) => {
       const labelMap: Record<string, string> = {
@@ -111,6 +101,7 @@ export function useMail(props?: UseMailProps) {
         read: isRead,
         htmlUrl: message.htmlUrl ?? null,
         threadId: message.threadId ?? null,
+        messageIdHeader: "",
         attachments: message.attachments?.map(att => ({
           id: att.id,
           filename: att.filename,
@@ -124,15 +115,26 @@ export function useMail(props?: UseMailProps) {
     []
   );
 
-  const filteredAndTransformedMessages = emailsData
+  const emailsData = React.useMemo(() => {
+    return infiniteData?.pages.flatMap((page) => page.emails) ?? [];
+  }, [infiniteData]);
+
+  const processedMessagesBeforeOverride = emailsData
     .map(transformMessage)
     .filter((message): message is Mail => message !== null);
+
+  const filteredAndTransformedMessages = processedMessagesBeforeOverride;
 
   const filteredMessagesByTab = React.useMemo(() => {
     return tabValue === "unread"
       ? filteredAndTransformedMessages.filter((item) => !item.read)
       : filteredAndTransformedMessages;
   }, [filteredAndTransformedMessages, tabValue]);
+
+  const { data: selectedMessageData, isLoading: isSelectedMessageLoading } = api.gmail.getMessage.useQuery(
+    selectedMailId ? { messageId: selectedMailId, format: "full" } : skipToken,
+    { enabled: !!selectedMailId }
+  );
 
   const { mutate: markAsRead } = api.gmail.markAsRead.useMutation({
     onSuccess: () => { void refetchMessages(); },

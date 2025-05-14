@@ -11,6 +11,7 @@ import {
   Trash2,
   Paperclip,
   Download,
+  PanelLeftClose,
 } from "lucide-react";
 import { Loader2 } from "lucide-react";
 import { Button } from "~/app/_components/ui/button";
@@ -44,9 +45,11 @@ import { ComposeModal } from "~/app/_components/dashboard/mail/compose-modal";
 interface MailDisplayProps {
   mail: Mail | null;
   isLoading?: boolean;
+  isMailListCollapsed: boolean;
+  onToggleMailList: () => void;
 }
 
-export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
+export function MailDisplay({ mail, isLoading, isMailListCollapsed, onToggleMailList }: MailDisplayProps) {
   const {
     htmlContent,
     isLoadingHtml,
@@ -74,7 +77,34 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
   console.log("[DEBUG] Mail:", mail);
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center p-2 h-[55]">
+      <div className="flex items-center p-2 h-[55px]">
+        {mail && (
+          <>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={onToggleMailList}
+                  title={isMailListCollapsed ? "Show Mail List" : "Hide Mail List"}
+                >
+                  {isMailListCollapsed ? (
+                    <PanelLeftClose className="h-4 w-4" style={{ transform: 'scaleX(-1)' }} />
+                  ) : (
+                    <PanelLeftClose className="h-4 w-4" />
+                  )}
+                  <span className="sr-only">
+                    {isMailListCollapsed ? "Show Mail List" : "Hide Mail List"}
+                  </span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                {isMailListCollapsed ? "Show Mail List" : "Hide Mail List"}
+              </TooltipContent>
+            </Tooltip>
+            <Separator orientation="vertical" className="mx-1 h-6" />
+          </>
+        )}
         <div className="flex items-center gap-2">
           <Tooltip>
             <TooltipTrigger asChild>
@@ -103,7 +133,7 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
             </TooltipTrigger>
             <TooltipContent>Move to trash</TooltipContent>
           </Tooltip>
-          <Separator orientation="vertical" className="mx-1 h-6" />
+          <div className="h-6 w-px bg-slate-300 dark:bg-slate-700 mx-1"></div>
           <Tooltip>
             <Popover>
               <PopoverTrigger asChild>
@@ -194,7 +224,7 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
       <Separator />
       {mail ? (
         <div className="flex flex-1 flex-col overflow-y-auto">
-          <div className="flex items-start justify-between p-4">
+          <div className="flex items-start justify-between p-5">
             <div className="flex items-start gap-4">
               <Avatar className="h-10 w-10">
                 <AvatarImage alt={mail.name} />

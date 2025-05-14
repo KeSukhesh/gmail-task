@@ -1,8 +1,8 @@
 import { auth } from "~/server/auth";
 import { api, HydrateClient } from "~/trpc/server";
 import { redirect } from "next/navigation";
-import DashboardShell from "./_components/dashboard/wrapper/dashboardWrapper";
 import { SessionProvider } from "next-auth/react";
+import { DashboardWrapper } from "~/app/_components/dashboard/wrapper/dashboardWrapper";
 
 export default async function Home() {
   const session = await auth();
@@ -19,7 +19,7 @@ export default async function Home() {
   return (
     <SessionProvider session={session}>
       <HydrateClient>
-        <DashboardShell />
+        <DashboardWrapper />
       </HydrateClient>
     </SessionProvider>
   );
