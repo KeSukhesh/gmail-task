@@ -32,7 +32,7 @@ export function Mail({
   setSection,
   onComposeClick,
 }: MailProps) {
-  const [isNavCollapsed, setIsNavCollapsed] = React.useState(false);
+  const [isNavCollapsed] = React.useState(false);
   const [isThreadView, setIsThreadView] = React.useState(true);
   const [localSearchQuery, setLocalSearchQuery] = React.useState("");
   const [isMailListCollapsed, setIsMailListCollapsed] = React.useState(false);
@@ -67,7 +67,6 @@ export function Mail({
           currentSection={currentSection}
           setSection={handleSectionChange}
           isCollapsed={isNavCollapsed}
-          setIsCollapsed={setIsNavCollapsed}
           showCompose={true}
           onComposeClick={onComposeClick}
         />

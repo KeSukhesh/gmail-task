@@ -4,16 +4,13 @@ import * as React from "react";
 import { Mail } from "../mail";
 import { Network } from "../network";
 import { MailProvider } from "../mail/mail-context";
-import { useSession } from "next-auth/react";
 import { ComposeModal } from "../mail/compose-modal";
-import type { Session } from "next-auth";
 
 export type Section = "INBOX" | "STARRED" | "SENT" | "ALL_MAIL" | "PEOPLE" | "COMPANIES";
 
 export function DashboardWrapper() {
   const [currentSection, setCurrentSection] = React.useState<Section>("INBOX");
   const [isComposeOpen, setIsComposeOpen] = React.useState(false);
-  const { data: session } = useSession();
 
   const isNetworkSection = currentSection === "PEOPLE" || currentSection === "COMPANIES";
 

@@ -13,7 +13,7 @@ interface NetworkProps {
 }
 
 export function Network({ type, currentSection, setSection, onComposeClick }: NetworkProps) {
-  const [isCollapsed, setIsCollapsed] = React.useState(false);
+  const [isCollapsed] = React.useState(false);
 
   const handleSectionChange = (section: Section) => {
     setSection(section);
@@ -26,7 +26,6 @@ export function Network({ type, currentSection, setSection, onComposeClick }: Ne
           currentSection={currentSection}
           setSection={handleSectionChange}
           isCollapsed={isCollapsed}
-          setIsCollapsed={setIsCollapsed}
           showCompose={true}
           onComposeClick={onComposeClick}
         />

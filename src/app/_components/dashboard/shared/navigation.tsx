@@ -13,7 +13,6 @@ interface NavigationProps {
   currentSection: Section;
   setSection: (section: Section) => void;
   isCollapsed: boolean;
-  setIsCollapsed: (collapsed: boolean) => void;
   showCompose?: boolean;
   onComposeClick?: () => void;
 }
@@ -22,7 +21,6 @@ export function Navigation({
   currentSection,
   setSection,
   isCollapsed,
-  setIsCollapsed,
   showCompose = true,
   onComposeClick,
 }: NavigationProps) {
