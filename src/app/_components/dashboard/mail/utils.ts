@@ -25,20 +25,26 @@ export function safeFormatDistance(
   }
   try {
     let date: Date;
-    // Try parsing ISO format first
-    if (dateString.includes('-') && dateString.includes('T')) { // A simple check for ISO-like strings
+
+    // Check if it's a numeric string (likely a timestamp in milliseconds)
+    if (/^\d+$/.test(dateString)) {
+      date = new Date(Number(dateString));
+    }
+    // Try parsing ISO format (heuristic check)
+    else if (dateString.includes('-') && dateString.includes('T')) {
       date = parseISO(dateString);
-    } else if (/^\d{2}\/\d{2}\/\d{4}/.test(dateString)) { // Check for DD/MM/YYYY
+    }
+    // Check for DD/MM/YYYY (heuristic check)
+    else if (/^\d{2}\/\d{2}\/\d{4}/.test(dateString)) {
       const [day, month, year] = dateString.split("/");
       if (day && month && year) {
-        // Ensure month is 0-indexed for Date constructor if using new Date(year, month, day)
-        // Using YYYY-MM-DD string for new Date() is more reliable
-        date = new Date(`${year}-${month}-${day}`);
+        date = new Date(`${year}-${month}-${day}`); // Safer to construct YYYY-MM-DD
       } else {
         throw new Error("Invalid DD/MM/YYYY format");
       }
-    } else {
-      // Fallback to direct parsing, or attempt other common formats if necessary
+    }
+    // Fallback for other string formats that new Date() might understand
+    else {
       date = new Date(dateString);
     }
 
@@ -49,14 +55,9 @@ export function safeFormatDistance(
     return formatDistanceToNowStrict(date, options);
   } catch (error) {
     console.error("Error parsing date for formatDistance:", dateString, error);
-    // Keep your existing fallback for YYYY-MM-DD if you still need it,
-    // but the primary parsing should be more robust now.
-    const parts = dateString.split("T")[0]?.split("-");
-    if (parts && parts.length === 3 && parts[0] && parts[1] && parts[2]) {
-      // Assuming the original intention was to display as MM/DD/YYYY if it was YYYY-MM-DD
-      return `${parts[1]}/${parts[2]}/${parts[0]}`;
-    }
-    return dateString; // Or a more generic fallback like "Invalid date"
+    // Fallback to original string or a more generic error message
+    // The previous YYYY-MM-DD to MM/DD/YYYY fallback might be too specific if formats vary widely
+    return "Invalid date"; // Or return dateString if you prefer to show the raw data on error
   }
 }
 
