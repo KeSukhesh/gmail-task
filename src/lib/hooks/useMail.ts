@@ -59,7 +59,7 @@ export function useMail(props?: UseMailProps) {
     {
       limit: 20,
       query: searchProps?.searchQuery ?? undefined,
-      labelIds: searchProps?.section ? [searchProps.section] : undefined,
+      labelIds: searchProps?.section && searchProps.section !== "ALL_MAIL" ? [searchProps.section] : undefined,
     },
     {
       getNextPageParam: (lastPage) => lastPage.nextCursor,

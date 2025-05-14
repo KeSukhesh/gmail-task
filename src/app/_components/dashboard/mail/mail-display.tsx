@@ -292,7 +292,7 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
               <div className="grid gap-4">
                 <Textarea
                   ref={replyTextareaRef}
-                  className="p-4"
+                  className="p-4 bg-white"
                   placeholder={`Reply to "${mail.name}"...`}
                   value={replyContent}
                   onChange={(e) => setReplyContent(e.target.value)}
