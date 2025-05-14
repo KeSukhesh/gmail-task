@@ -73,6 +73,9 @@ model Email {
   updatedAt    DateTime  @updatedAt
   threadId     String?
   labelIds     String[]  @default([])
+  messageIdHeader String? // The RFC 5322 Message-ID header
+  references   String?
+  inReplyTo    String?
   isRead       Boolean   @default(false)
   htmlUrl      String?   // S3 URL to full HTML content
   text         String?   // Full text content

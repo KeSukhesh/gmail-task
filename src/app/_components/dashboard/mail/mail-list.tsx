@@ -80,7 +80,7 @@ export function MailList({
 
   return (
     <ScrollArea className="h-[calc(100vh-8rem)]">
-      <div className="flex flex-col gap-2 pl-4 pt-0">
+      <div className="flex flex-col gap-2 p-4 overflow-hidden">
         {isLoading ? (
           <div className="flex h-32 items-center justify-center">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -91,22 +91,22 @@ export function MailList({
               key={item.id}
               ref={index === groupedMessages.length - 1 ? lastItemRef : undefined}
               className={cn(
-                "flex flex-col items-start gap-2 rounded-lg border p-3 text-left text-sm transition-all hover:bg-accent w-[calc(100%-1.5rem)]",
+                "flex flex-col items-start gap-2 rounded-lg border p-3 text-left text-sm transition-all hover:bg-accent w-full overflow-hidden",
                 selectedMailId === item.id && "bg-muted"
               )}
               onClick={() => handleSelect(item.id)}
             >
-              <div className="flex w-full flex-col gap-1">
-                <div className="flex items-center">
-                  <div className="flex items-center gap-2">
-                    <div className="font-semibold">{item.name}</div>
+              <div className="flex w-full flex-col gap-1 min-w-0">
+                <div className="flex items-center w-full">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="font-semibold truncate">{item.name}</div>
                     {!item.read && (
-                      <span className="flex h-2 w-2 rounded-full bg-blue-600" />
+                      <span className="flex h-2 w-2 rounded-full bg-blue-600 flex-shrink-0" />
                     )}
                   </div>
                   <div
                     className={cn(
-                      "ml-auto text-xs",
+                      "ml-auto text-xs flex-shrink-0",
                       selectedMailId === item.id
                         ? "text-foreground"
                         : "text-muted-foreground"
@@ -115,13 +115,13 @@ export function MailList({
                     {safeFormatDistance(item.date)}
                   </div>
                 </div>
-                <div className="text-xs font-medium">{item.subject}</div>
+                <div className="text-xs font-medium truncate">{item.subject}</div>
               </div>
-              <div className="line-clamp-2 text-xs text-muted-foreground">
+              <div className="line-clamp-2 text-xs text-muted-foreground w-full">
                 {item.snippet ?? ''}
               </div>
               {(item.labels ?? []).length > 0 ? (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   {(item.labels ?? []).map((label) => (
                     <Badge key={label} variant={getBadgeVariantFromLabel(label)}>
                       {label}

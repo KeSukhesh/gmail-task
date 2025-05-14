@@ -33,8 +33,8 @@ export default function Login() {
                     width={64}
                     height={64}
                     />
-                    <CardTitle className="text-2xl">💼 Gmail</CardTitle>
-                    <CardDescription>a simple email app that uses the gmail api</CardDescription>
+                    <CardTitle className="text-2xl">💼 LyraMail</CardTitle>
+                    <CardDescription>a simple email app that wraps the gmail api</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <div className="flex flex-col gap-6">

@@ -47,6 +47,7 @@ export interface Mail {
   labels: string[];
   read: boolean;
   htmlUrl: string | null;
+  messageIdHeader: string | undefined;
   threadId: string | null;
   attachments: Attachment[];
 }

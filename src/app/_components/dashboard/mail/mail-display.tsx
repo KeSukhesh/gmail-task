@@ -38,7 +38,8 @@ import type { Mail } from "./types";
 import { safeFormat } from "./utils";
 import { useMailDisplay } from "~/lib/hooks/useMailDisplay";
 import { api } from "~/trpc/react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import { ComposeModal } from "~/app/_components/dashboard/mail/compose-modal";
 
 interface MailDisplayProps {
   mail: Mail | null;
@@ -58,6 +59,7 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
   const sendEmail = api.gmail.sendEmail.useMutation();
   const today = new Date();
   const replyTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const [isForwardOpen, setIsForwardOpen] = useState(false);
   const handleReplyButtonClick = () => {
     replyTextareaRef.current?.focus();
   };
@@ -165,7 +167,7 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
           </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon" disabled={!mail}>
+              <Button variant="ghost" size="icon" disabled={!mail} onClick={() => setIsForwardOpen(true)}>
                 <Forward className="h-4 w-4" />
                 <span className="sr-only">Forward</span>
               </Button>
@@ -278,8 +280,9 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
                   to: [mail.email],
                   subject: `Re: ${mail.subject}`,
                   text: replyContent,
-                  inReplyTo: mail.id,
                   threadId: mail.threadId ?? undefined,
+                  inReplyTo: mail.messageIdHeader ?? undefined,
+                  references: mail.messageIdHeader ? [mail.messageIdHeader] : undefined,
                 });
                 setReplyContent(""); // Clear after send
               } catch (error) {
@@ -313,6 +316,14 @@ export function MailDisplay({ mail, isLoading }: MailDisplayProps) {
           No message selected
         </div>
       )}
+      <ComposeModal
+        isOpen={isForwardOpen}
+        onClose={() => setIsForwardOpen(false)}
+        initialValues={mail ? {
+          subject: `Fwd: ${mail.subject}`,
+          text: `\n\n---------- Forwarded message ---------\nFrom: ${mail.name} <${mail.email}>\nDate: ${new Date(mail.internalDate).toLocaleString()}\nSubject: ${mail.subject}\n\n${mail.text}`,
+        } : undefined}
+      />
     </div>
   );
 }

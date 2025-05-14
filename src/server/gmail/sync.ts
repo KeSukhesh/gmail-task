@@ -20,32 +20,37 @@ export async function syncGmailEmails(userId: string) {
   const processMessage = async (msg: GmailMessage) => {
     const messageId = msg.id;
     if (!messageId) return;
-
+  
     const exists = await db.email.findUnique({ where: { id: messageId } });
     if (exists) return;
-
+  
     const fullMessage = await gmail.users.messages.get({
       userId: "me",
       id: messageId,
       format: "raw",
     });
-
+  
     if (!fullMessage.data.raw) return;
-
-    const base64 = fullMessage.data.raw.replace(/-/g, '+').replace(/_/g, '/');
-    const raw = Buffer.from(base64, 'base64');
+  
+    const payloadHeaders = fullMessage.data.payload?.headers ?? [];
+    const getHeader = (name: string) =>
+      payloadHeaders.find(h => h.name?.toLowerCase() === name.toLowerCase())?.value ?? null;
+  
+    const messageIdHeader = getHeader("Message-ID");
+    const inReplyTo = getHeader("In-Reply-To");
+    const references = getHeader("References");
+  
+    const base64 = fullMessage.data.raw.replace(/-/g, "+").replace(/_/g, "/");
+    const raw = Buffer.from(base64, "base64");
     const parsed = await simpleParser(raw);
-
+  
     const resolvedHtml = parsed.html ?? parsed.textAsHtml ?? null;
-
+  
     const attachmentRecords = await Promise.all(
       (parsed.attachments ?? []).map(async (attachment) => {
         if (!attachment.content || !attachment.filename) return null;
         try {
-          const url = await uploadToS3(
-            `attachments/${messageId}/${attachment.filename}`,
-            attachment.content.toString('base64')
-          );
+          const url = await uploadToS3(`attachments/${messageId}/${attachment.filename}`, attachment.content.toString("base64"));
           return {
             id: `${messageId}-${attachment.filename}`,
             filename: attachment.filename,
@@ -59,8 +64,8 @@ export async function syncGmailEmails(userId: string) {
           return null;
         }
       })
-    ).then(records => records.filter((r): r is NonNullable<typeof r> => r !== null));
-
+    ).then((records) => records.filter((r): r is NonNullable<typeof r> => r !== null));
+  
     let htmlUrl: string | null = null;
     if (resolvedHtml) {
       try {
@@ -69,7 +74,7 @@ export async function syncGmailEmails(userId: string) {
         console.error(`[SYNC] Failed to upload HTML for ${messageId}:`, error);
       }
     }
-
+  
     await db.email.create({
       data: {
         id: messageId,
@@ -81,6 +86,9 @@ export async function syncGmailEmails(userId: string) {
         isRead: !fullMessage.data.labelIds?.includes("UNREAD"),
         labelIds: fullMessage.data.labelIds ?? [],
         threadId: fullMessage.data.threadId ?? null,
+        messageIdHeader,
+        inReplyTo,
+        references,
         htmlUrl,
         text: parsed.text ?? null,
         attachments: {
@@ -88,7 +96,7 @@ export async function syncGmailEmails(userId: string) {
         },
       },
     });
-
+  
     console.log(`[SYNC] Synced email ${messageId}`);
   };
 

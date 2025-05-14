@@ -18,6 +18,10 @@ import { useMail } from "~/lib/hooks/useMail";
 interface ComposeModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialValues?: {
+    subject?: string;
+    text?: string;
+  };
 }
 
 function EmailChips({
@@ -44,16 +48,16 @@ function EmailChips({
   );
 }
 
-export function ComposeModal({ isOpen, onClose }: ComposeModalProps) {
+export function ComposeModal({ isOpen, onClose, initialValues }: ComposeModalProps) {
   const { sendEmail } = useComposeMail();
   const { syncEmails } = useMail();
-  const [subject, setSubject] = React.useState("");
+  const [subject, setSubject] = React.useState(initialValues?.subject ?? "");
   const [to, setTo] = React.useState<string[]>([]);
   const [cc, setCc] = React.useState<string[]>([]);
   const [bcc, setBcc] = React.useState<string[]>([]);
   const [showCc, setShowCc] = React.useState(false);
   const [showBcc, setShowBcc] = React.useState(false);
-  const [content, setContent] = React.useState("");
+  const [content, setContent] = React.useState(initialValues?.text ?? "");
   const [isSending, setIsSending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 

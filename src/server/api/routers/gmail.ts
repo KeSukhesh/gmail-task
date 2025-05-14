@@ -215,7 +215,7 @@ export const gmailRouter = createTRPCRouter({
       };
     }),
 
-  sendEmail: protectedProcedure
+    sendEmail: protectedProcedure
     .input(
       z.object({
         to: z.array(z.string().email()),
@@ -226,6 +226,7 @@ export const gmailRouter = createTRPCRouter({
         html: z.string().optional(),
         inReplyTo: z.string().optional(),
         threadId: z.string().optional(),
+        references: z.array(z.string()).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -235,19 +236,36 @@ export const gmailRouter = createTRPCRouter({
           message: "Gmail client not initialized",
         });
       }
-
+  
       if (!ctx.session.user.email) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "User email is required",
         });
       }
-
+  
       try {
         const from = ctx.session.user.name
           ? `${ctx.session.user.name} <${ctx.session.user.email}>`
           : ctx.session.user.email;
-
+  
+        // 🔄 Build proper references chain if replying
+        let references: string[] | undefined = input.references;
+  
+        if (input.inReplyTo) {
+          const parentEmail = await ctx.db.email.findFirst({
+            where: {
+              messageIdHeader: input.inReplyTo,
+              userId: ctx.session.user.id,
+            },
+          });
+  
+          const existingReferences = parentEmail?.references?.split(" ") ?? [];
+          const parentMessageId = parentEmail?.messageIdHeader;
+  
+          references = [...existingReferences, parentMessageId].filter((ref): ref is string => typeof ref === 'string');
+        }
+  
         const mail = new MailComposer({
           from,
           to: input.to,
@@ -256,13 +274,17 @@ export const gmailRouter = createTRPCRouter({
           subject: input.subject,
           text: input.text,
           html: input.html,
-          inReplyTo: input.inReplyTo,
-          headers: input.inReplyTo ? {
-            'References': input.inReplyTo,
-          } : undefined,
           textEncoding: "base64",
+          inReplyTo: input.inReplyTo,
+          references: references?.join(" "),
+          headers: {
+            ...(input.inReplyTo ? { "In-Reply-To": input.inReplyTo } : {}),
+            ...(references && references.length > 0
+              ? { References: references.join(" ") }
+              : {}),
+          },
         });
-
+  
         const message = await new Promise<Buffer>((resolve, reject) => {
           const compiled = mail.compile();
           if (!compiled) {
@@ -277,10 +299,9 @@ export const gmailRouter = createTRPCRouter({
             }
           });
         });
-
-        // Convert to base64url format for Gmail API
+  
         const encodedEmail = message.toString("base64url");
-
+  
         const response = await ctx.gmail.users.messages.send({
           userId: "me",
           requestBody: {
@@ -288,22 +309,26 @@ export const gmailRouter = createTRPCRouter({
             threadId: input.threadId,
           },
         });
-
+  
         if (!response.data) {
           throw new Error("No response data from Gmail API");
         }
-
+  
         await syncGmailEmails(ctx.session.user.id);
-
+  
         return response.data;
       } catch (error) {
-        console.error("Error sending email:", error instanceof Error ? error.message : "Unknown error");
+        console.error(
+          "Error sending email:",
+          error instanceof Error ? error.message : "Unknown error"
+        );
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Failed to send email",
         });
       }
     }),
+  
     getEmailHtml: protectedProcedure
     .input(z.object({ key: z.string() }))
     .query(async ({ input }) => {
