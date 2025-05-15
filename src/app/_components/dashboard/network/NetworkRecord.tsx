@@ -5,6 +5,7 @@ import { Button } from "~/app/_components/ui/button";
 import { Send } from "lucide-react";
 import { api } from "~/trpc/react";
 import { useSession } from "next-auth/react";
+import { ActivityTab } from "./ActivityTab";
 
 // Assuming these types are co-located or imported from a shared types file
 // For this example, I'll redefine them. In a real app, import them.
@@ -228,43 +229,44 @@ export function NetworkRecord({
             {activeMainTab === "Activity" && (
               <div className="space-y-2">
                 {isPerson && personActivityQuery?.data ? (
-                  <>
-                    <h3>Inbound Emails</h3>
-                    <ul>
-                      {personActivityQuery.data.inboundEmails.map(email => (
-                        <li key={email.id}>{email.subject}</li>
-                      ))}
-                    </ul>
-                    <h3>Outbound Emails</h3>
-                    <ul>
-                      {personActivityQuery.data.outboundEmails.map(email => (
-                        <li key={email.id}>{email.subject}</li>
-                      ))}
-                    </ul>
-                  </>
+                  <ActivityTab
+                    inboundEmails={personActivityQuery.data.inboundEmails.map(email => ({
+                      id: email.id,
+                      subject: email.subject ?? '(No Subject)',
+                      date: email.internalDate ?? email.createdAt ?? null,
+                    }))}
+                    outboundEmails={personActivityQuery.data.outboundEmails.map(email => ({
+                      id: email.id,
+                      subject: email.subject ?? '(No Subject)',
+                      date: email.internalDate ?? email.createdAt ?? null,
+                    }))}
+                  />
                 ) : !isPerson && companyActivityQuery?.data ? (
+                  <ActivityTab
+                    inboundEmails={companyActivityQuery.data.inboundEmails.map(email => ({
+                      id: email.id,
+                      subject: email.subject ?? '(No Subject)',
+                      date: email.internalDate ?? email.createdAt ?? null,
+                    }))}
+                    outboundEmails={companyActivityQuery.data.outboundEmails.map(email => ({
+                      id: email.id,
+                      subject: email.subject ?? '(No Subject)',
+                      date: email.internalDate ?? email.createdAt ?? null,
+                    }))}
+                  />
+                ) : (
+                  <div>Loading activity...</div>
+                )}
+                {/* Company people list remains below for companies */}
+                {!isPerson && companyActivityQuery?.data && (
                   <>
-                    <h3>Inbound Emails</h3>
-                    <ul>
-                      {companyActivityQuery.data.inboundEmails.map(email => (
-                        <li key={email.id}>{email.subject}</li>
-                      ))}
-                    </ul>
-                    <h3>Outbound Emails</h3>
-                    <ul>
-                      {companyActivityQuery.data.outboundEmails.map(email => (
-                        <li key={email.id}>{email.subject}</li>
-                      ))}
-                    </ul>
-                    <h3>People in Company</h3>
-                    <ul>
+                    <h3 className="text-lg font-semibold mt-6 mb-2 border-b pb-1">People in Company</h3>
+                    <ul className="space-y-2">
                       {companyActivityQuery.data.people.map(person => (
                         <li key={person.id}>{person.name} ({person.email})</li>
                       ))}
                     </ul>
                   </>
-                ) : (
-                  <div>Loading activity...</div>
                 )}
               </div>
             )}
