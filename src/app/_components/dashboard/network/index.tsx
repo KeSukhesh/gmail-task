@@ -60,6 +60,35 @@ type CompanyRecord = {
 };
 
 
+// Color mapping for connection strength
+function getStrengthColor(strength: string): string {
+  switch (strength) {
+    case "Very Strong":
+      return "bg-green-500 text-white";
+    case "Strong":
+      return "bg-lime-400 text-black";
+    case "Medium":
+      return "bg-yellow-400 text-black";
+    case "Weak":
+    default:
+      return "bg-red-400 text-white";
+  }
+}
+
+function getStrengthDotColor(strength: string): string {
+  switch (strength) {
+    case "Very Strong":
+      return "bg-green-500";
+    case "Strong":
+      return "bg-lime-400";
+    case "Medium":
+      return "bg-yellow-400";
+    case "Weak":
+    default:
+      return "bg-red-400";
+  }
+}
+
 // Define columns for People
 const peopleColumns: ColumnDef<PersonData>[] = [
   {
@@ -73,6 +102,15 @@ const peopleColumns: ColumnDef<PersonData>[] = [
   {
     accessorKey: "connectionStrength",
     header: "Connection Strength",
+    cell: ({ getValue }) => {
+      const strength = getValue() as string;
+      return (
+        <span className="flex items-center gap-2">
+          <span className={`inline-block w-2 h-2 rounded-full ${getStrengthDotColor(strength)}`} />
+          {strength}
+        </span>
+      );
+    },
   },
 ];
 
@@ -93,6 +131,15 @@ const companiesColumns: ColumnDef<CompanyData>[] = [
   {
     accessorKey: "connectionStrength",
     header: "Connection Strength",
+    cell: ({ getValue }) => {
+      const strength = getValue() as string;
+      return (
+        <span className="flex items-center gap-2">
+          <span className={`inline-block w-2 h-2 rounded-full ${getStrengthDotColor(strength)}`} />
+          {strength}
+        </span>
+      );
+    },
   },
 ];
 
@@ -326,3 +373,6 @@ function getStrengthLabel(interactionCount: number): string {
   if (interactionCount > 5) return "Medium";
   return "Weak";
 }
+
+// Export color helpers for use in record component
+export { getStrengthColor, getStrengthDotColor };

@@ -6,6 +6,7 @@ import { Send } from "lucide-react";
 import { api } from "~/trpc/react";
 import { useSession } from "next-auth/react";
 import { ActivityTab } from "./ActivityTab";
+import { getStrengthColor } from "./index";
 
 // Assuming these types are co-located or imported from a shared types file
 // For this example, I'll redefine them. In a real app, import them.
@@ -189,13 +190,13 @@ export function NetworkRecord({
             <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
               Last Interaction: {currentRecord.lastInteracted ? new Date(currentRecord.lastInteracted).toLocaleDateString() : 'Never'}
             </span>
-            <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${getStrengthColor(getStrengthLabel(currentRecord.interactionCount))}`}>
               Strength: {getStrengthLabel(currentRecord.interactionCount)}
             </span>
           </>
         ) : (
           <>
-            <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${getStrengthColor(getStrengthLabel(currentRecord.interactionCount))}`}>
               Strength: {getStrengthLabel(currentRecord.interactionCount)}
             </span>
             <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
