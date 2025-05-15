@@ -5,8 +5,6 @@ import { uploadToS3 } from "~/server/s3";
 import type { gmail_v1 } from "googleapis";
 
 type GmailMessage = NonNullable<gmail_v1.Schema$Message>;
-type GmailListResponse = gmail_v1.Schema$ListMessagesResponse;
-type GmailThreadResponse = gmail_v1.Schema$Thread;
 
 const labelsToSync = ["INBOX", "SENT"];
 
@@ -20,32 +18,30 @@ export async function syncGmailEmails(userId: string) {
   const processMessage = async (msg: GmailMessage) => {
     const messageId = msg.id;
     if (!messageId) return;
-  
+
     const exists = await db.email.findUnique({ where: { id: messageId } });
     if (exists) return;
-  
+
     const fullMessage = await gmail.users.messages.get({
       userId: "me",
       id: messageId,
       format: "raw",
     });
-  
+
     if (!fullMessage.data.raw) return;
-  
+
     const payloadHeaders = fullMessage.data.payload?.headers ?? [];
     const getHeader = (name: string) =>
       payloadHeaders.find(h => h.name?.toLowerCase() === name.toLowerCase())?.value ?? null;
-  
+
     const messageIdHeader = getHeader("Message-ID");
     const inReplyTo = getHeader("In-Reply-To");
     const references = getHeader("References");
-  
     const base64 = fullMessage.data.raw.replace(/-/g, "+").replace(/_/g, "/");
     const raw = Buffer.from(base64, "base64");
     const parsed = await simpleParser(raw);
-  
     const resolvedHtml = parsed.html ?? parsed.textAsHtml ?? null;
-  
+
     const attachmentRecords = await Promise.all(
       (parsed.attachments ?? []).map(async (attachment) => {
         if (!attachment.content || !attachment.filename) return null;
@@ -76,6 +72,7 @@ export async function syncGmailEmails(userId: string) {
     }
 
     const now = new Date();
+    const emailDate = parsed.date ?? now;
 
     const participants = [
       ...getParticipants(parsed.from),
@@ -91,12 +88,11 @@ export async function syncGmailEmails(userId: string) {
 
       const domain = extractDomain(participantEmail);
 
-      // 🟢 Upsert Person
       await db.person.upsert({
         where: { userId_email: { userId, email: participantEmail } },
         update: {
           name: participantName,
-          lastInteracted: now,
+          lastInteracted: emailDate,
           interactionCount: { increment: 1 },
         },
         create: {
@@ -104,12 +100,11 @@ export async function syncGmailEmails(userId: string) {
           name: participantName,
           userId,
           companyDomain: domain,
-          lastInteracted: now,
+          lastInteracted: emailDate,
           interactionCount: 1,
         },
       });
 
-      // 🟢 Upsert Company if domain exists
       if (domain) {
         const existingCompany = await db.company.findFirst({
           where: { userId, domains: { has: domain } },
@@ -119,7 +114,7 @@ export async function syncGmailEmails(userId: string) {
           await db.company.update({
             where: { id: existingCompany.id },
             data: {
-              lastInteracted: now,
+              lastInteracted: emailDate,
               interactionCount: { increment: 1 },
             },
           });
@@ -127,9 +122,9 @@ export async function syncGmailEmails(userId: string) {
           await db.company.create({
             data: {
               userId,
-              name: domain, // You can optionally resolve real names if you want
+              name: domain,
               domains: [domain],
-              lastInteracted: now,
+              lastInteracted: emailDate,
               interactionCount: 1,
             },
           });
@@ -137,7 +132,6 @@ export async function syncGmailEmails(userId: string) {
       }
     }
 
-    // 🟢 Create Email Record
     await db.email.create({
       data: {
         id: messageId,
@@ -184,8 +178,10 @@ export async function syncGmailEmails(userId: string) {
           const message = await gmail.users.messages.get({ userId: "me", id: messageId });
           const threadId = message.data.threadId;
           if (threadId) {
-            const thread = await gmail.users.threads.get({ userId: "me", id: threadId });
-            for (const threadMsg of thread.data.messages ?? []) {
+            const threadRes = await gmail.users.threads.get({ userId: "me", id: threadId });
+            const threadData: gmail_v1.Schema$Thread = threadRes.data;
+            const threadMessages = Array.isArray(threadData.messages) ? threadData.messages : [];
+            for (const threadMsg of threadMessages) {
               await processMessage(threadMsg);
             }
           } else {
@@ -207,30 +203,54 @@ export async function syncGmailEmails(userId: string) {
     } else {
       console.log("[SYNC] No historyId found, performing full sync.");
       for (const label of labelsToSync) {
-        let pageToken: string | undefined = undefined;
+        const hasCurrentLabel = typeof checkpoint?.currentLabel === 'string';
+        if (hasCurrentLabel && checkpoint.currentLabel !== label) continue;
+
+        const hasNextPageToken = typeof checkpoint?.nextPageToken === 'string';
+        let pageToken = hasNextPageToken && checkpoint.nextPageToken ? checkpoint.nextPageToken : undefined;
+
         do {
           const listRes = await gmail.users.messages.list({
             userId: "me",
             labelIds: [label],
             maxResults: 100,
-            pageToken,
-          }) as { data: GmailListResponse };
-
-          const msgs = listRes.data.messages ?? [];
+            pageToken: pageToken ?? undefined,
+          });
+          const data: gmail_v1.Schema$ListMessagesResponse = listRes.data;
+          const msgs = Array.isArray(data.messages) ? data.messages : [];
           for (const msgMeta of msgs) {
+            if (!msgMeta) continue;
             const threadId = msgMeta.threadId;
             if (threadId) {
-              const thread = await gmail.users.threads.get({ userId: "me", id: threadId }) as { data: GmailThreadResponse };
-              for (const threadMsg of thread.data.messages ?? []) {
+              const threadRes = await gmail.users.threads.get({ userId: "me", id: threadId });
+              const threadData: gmail_v1.Schema$Thread = threadRes.data;
+              const threadMessages = Array.isArray(threadData.messages) ? threadData.messages : [];
+              for (const threadMsg of threadMessages) {
                 await processMessage(threadMsg);
               }
-            } else {
-              const message = await gmail.users.messages.get({ userId: "me", id: msgMeta.id! });
-              await processMessage(message.data);
+            } else if (msgMeta.id) {
+              const messageRes = await gmail.users.messages.get({ userId: "me", id: msgMeta.id });
+              await processMessage(messageRes.data);
             }
           }
-          pageToken = listRes.data.nextPageToken ?? undefined;
+
+          pageToken = data?.nextPageToken ?? undefined;
+
+          await db.emailSyncCheckpoint.upsert({
+            where: { userId },
+            update: { nextPageToken: pageToken, currentLabel: label },
+            create: { userId, nextPageToken: pageToken, currentLabel: label },
+          });
+
+          if (pageToken) return;
+
         } while (pageToken);
+
+        await db.emailSyncCheckpoint.upsert({
+          where: { userId },
+          update: { nextPageToken: null, currentLabel: null },
+          create: { userId, nextPageToken: null, currentLabel: null },
+        });
       }
 
       const profileRes = await gmail.users.getProfile({ userId: "me" });
