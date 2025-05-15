@@ -18,6 +18,7 @@ import { useMail } from "~/lib/hooks/useMail";
 interface ComposeModalProps {
   isOpen: boolean;
   onClose: () => void;
+  initialRecipient?: string | null;
   initialValues?: {
     subject?: string;
     text?: string;
@@ -48,21 +49,35 @@ function EmailChips({
   );
 }
 
-export function ComposeModal({ isOpen, onClose, initialValues }: ComposeModalProps) {
+export function ComposeModal({ isOpen, onClose, initialRecipient, initialValues }: ComposeModalProps) {
   const { sendEmail } = useComposeMail();
   const { syncEmails } = useMail();
-  const [subject, setSubject] = React.useState(initialValues?.subject ?? "");
+  const [subject, setSubject] = React.useState("");
   const [to, setTo] = React.useState<string[]>([]);
   const [cc, setCc] = React.useState<string[]>([]);
   const [bcc, setBcc] = React.useState<string[]>([]);
   const [showCc, setShowCc] = React.useState(false);
   const [showBcc, setShowBcc] = React.useState(false);
-  const [content, setContent] = React.useState(initialValues?.text ?? "");
+  const [content, setContent] = React.useState("");
   const [isSending, setIsSending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   const [currentInput, setCurrentInput] = React.useState("");
   const [inputMode, setInputMode] = React.useState<"to" | "cc" | "bcc">("to");
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setTo(initialRecipient ? [initialRecipient] : []);
+      setSubject(initialValues?.subject ?? "");
+      setContent(initialValues?.text ?? "");
+      setCc([]);
+      setBcc([]);
+      setCurrentInput("");
+      setShowCc(false);
+      setShowBcc(false);
+      setError(null);
+    }
+  }, [isOpen, initialRecipient, initialValues]);
 
   const addRecipient = () => {
     const value = currentInput.trim();
@@ -86,7 +101,6 @@ export function ComposeModal({ isOpen, onClose, initialValues }: ComposeModalPro
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, field: "to" | "cc" | "bcc") => {
     if (e.key === "Tab") {
       if (currentInput.trim()) {
-        // Only prevent tab when converting to chip
         e.preventDefault();
         addRecipient();
       } else {
@@ -150,6 +164,7 @@ export function ComposeModal({ isOpen, onClose, initialValues }: ComposeModalPro
     setShowCc(false);
     setShowBcc(false);
     setError(null);
+    setIsSending(false);
     onClose();
   };
 

@@ -11,6 +11,7 @@ export type Section = "INBOX" | "STARRED" | "SENT" | "ALL_MAIL" | "PEOPLE" | "CO
 export function DashboardWrapper() {
   const [currentSection, setCurrentSection] = React.useState<Section>("INBOX");
   const [isComposeOpen, setIsComposeOpen] = React.useState(false);
+  const [composeRecipientEmail, setComposeRecipientEmail] = React.useState<string | null>(null);
 
   const isNetworkSection = currentSection === "PEOPLE" || currentSection === "COMPANIES";
 
@@ -24,6 +25,8 @@ export function DashboardWrapper() {
 
   const handleComposeClose = () => {
     setIsComposeOpen(false);
+    // Optionally clear recipient when modal closes from any source
+    // setComposeRecipientEmail(null); 
   };
 
   return (
@@ -35,6 +38,7 @@ export function DashboardWrapper() {
             currentSection={currentSection}
             setSection={handleSectionChange}
             onComposeClick={handleComposeOpen}
+            setComposeRecipient={setComposeRecipientEmail}
           />
         ) : (
           <Mail
@@ -49,6 +53,7 @@ export function DashboardWrapper() {
       <ComposeModal
         isOpen={isComposeOpen}
         onClose={handleComposeClose}
+        initialRecipient={composeRecipientEmail}
       />
     </MailProvider>
   );
