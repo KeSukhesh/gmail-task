@@ -3,24 +3,29 @@
 import * as React from "react";
 import { Button } from "~/app/_components/ui/button";
 import { Send } from "lucide-react";
+import { api } from "~/trpc/react";
+import { useSession } from "next-auth/react";
 
 // Assuming these types are co-located or imported from a shared types file
 // For this example, I'll redefine them. In a real app, import them.
-interface PersonData {
-  personName: string;
-  email?: string;
-  companyName?: string;
-  lastEmailInteraction: string;
-  connectionStrength: string;
-}
+type PersonRecord = {
+  id: string;
+  userId: string;
+  email: string;
+  name: string;
+  companyDomain: string | null;
+  lastInteracted: Date | null;
+  interactionCount: number;
+};
 
-interface CompanyData {
-  companyName: string;
-  domains: string;
-  email?: string;
-  connectionsInCompany: number;
-  connectionStrength: string;
-}
+type CompanyRecord = {
+  id: string;
+  userId: string;
+  name: string;
+  domains: string[];
+  lastInteracted: Date | null;
+  interactionCount: number;
+};
 
 // Define types for the new tabs
 type MainRecordTab = "Activity" | "Email" | "Company" | "Team" | "Notes" | "Tasks" | "Files";
@@ -28,7 +33,7 @@ type SidebarRecordTab = "Details" | "Comments";
 
 interface NetworkRecordProps {
   onBack: () => void;
-  record: PersonData | CompanyData | null;
+  record: PersonRecord | CompanyRecord | null;
   currentIndex: number;
   totalCount: number;
   recordTypeLabel: string;
@@ -47,10 +52,12 @@ export function NetworkRecord({
 }: NetworkRecordProps) {
   const [activeMainTab, setActiveMainTab] = React.useState<MainRecordTab>("Activity");
   const [activeSidebarTab, setActiveSidebarTab] = React.useState<SidebarRecordTab>("Details");
+  const { data: session } = useSession();
 
-  // Define isPerson type guard early, it does not depend on the record instance itself for its definition.
-  const isPersonGuard = (rec: PersonData | CompanyData | null): rec is PersonData =>
-    !!rec && (rec as PersonData).personName !== undefined;
+  // Type guard to distinguish PersonRecord from CompanyRecord
+  const isPersonRecord = (rec: PersonRecord | CompanyRecord | null): rec is PersonRecord => {
+    return !!rec && 'email' in rec && typeof rec.email === 'string';
+  };
 
   const mainTabsForPerson: MainRecordTab[] = React.useMemo(() => 
     ["Activity", "Email", "Company", "Notes", "Tasks", "Files"], 
@@ -59,12 +66,11 @@ export function NetworkRecord({
     ["Activity", "Email", "Team", "Notes", "Tasks", "Files"], 
   []);
 
-  // Determine currentMainTabs. If record is null, default to person tabs for structure, useEffect will handle it.
-  const currentMainTabs = isPersonGuard(record) ? mainTabsForPerson : mainTabsForCompany;
+  const currentMainTabs = isPersonRecord(record) ? mainTabsForPerson : mainTabsForCompany;
   
   React.useEffect(() => {
     if (record) { 
-      const tabsForCurrentRecord = isPersonGuard(record) ? mainTabsForPerson : mainTabsForCompany;
+      const tabsForCurrentRecord = isPersonRecord(record) ? mainTabsForPerson : mainTabsForCompany;
       if (!tabsForCurrentRecord.includes(activeMainTab)) {
         setActiveMainTab(tabsForCurrentRecord[0]!);
       }
@@ -77,14 +83,33 @@ export function NetworkRecord({
     return null;
   }
 
-  // Now currentRecord is guaranteed to be non-null
   const currentRecord = record;
-  // Use the guard with the non-null record for rendering logic
-  const isPersonRecord = isPersonGuard(currentRecord);
+  const isPerson = isPersonRecord(currentRecord);
 
   const canNavigatePrev = currentIndex > 0;
   const canNavigateNext = currentIndex < totalCount - 1;
-  
+
+  const personActivityQuery = isPerson
+    ? api.people.getByIdWithActivity.useQuery({ id: currentRecord.id })
+    : null;
+
+  const companyActivityQuery = !isPerson
+    ? api.companies.getByIdWithActivity.useQuery({ id: currentRecord.id })
+    : null;
+
+  const displayName =
+    isPerson &&
+    typeof currentRecord.email === 'string' &&
+    session?.user?.email &&
+    currentRecord.email === session.user.email
+      ? session.user.name
+      : isPerson && currentRecord.name && currentRecord.name.trim().length > 0
+        ? currentRecord.name
+        : isPerson && typeof currentRecord.email === 'string'
+          ? currentRecord.email.split("@")[0]
+          : "Unknown";
+
+  console.log("[name]", currentRecord.name);
   return (
     <div className="flex h-full flex-col pt-4">
       {/* Nav Div - Outer container for full-width border and space for border */}
@@ -131,20 +156,16 @@ export function NetworkRecord({
       {/* Record Details Title - gets horizontal padding */}
       <div className="mb-4 flex items-center justify-between px-4">
         <h2 className="text-2xl font-semibold">
-          {isPersonRecord ? currentRecord.personName : currentRecord.companyName}
+          {displayName}
         </h2>
         {/* Show button if it's a person with an email OR a company with an email */}
-        {(isPersonRecord && currentRecord.email) || 
-         (!isPersonRecord && currentRecord.email) ? (
+        {isPerson && currentRecord.email ? (
           <Button
             variant="outline"
             size="sm" 
             onClick={() => {
-              const emailToUse = isPersonRecord 
-                ? currentRecord.email 
-                : currentRecord.email;
-              if (emailToUse) {
-                onComposeEmail(emailToUse);
+              if (currentRecord.email) {
+                onComposeEmail(currentRecord.email);
               }
             }}
             className="ml-auto flex items-center gap-2"
@@ -157,27 +178,27 @@ export function NetworkRecord({
 
       {/* Tags Row - Reduced bottom margin */}
       <div className="mb-2 flex flex-wrap items-center gap-2 px-4">
-        {isPersonRecord ? (
+        {isPerson ? (
           <>
-            {currentRecord.companyName && (
+            {currentRecord.companyDomain && (
               <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
-                Company: {currentRecord.companyName}
+                Company: {currentRecord.companyDomain}
               </span>
             )}
             <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
-              Last Interaction: {currentRecord.lastEmailInteraction}
+              Last Interaction: {currentRecord.lastInteracted ? new Date(currentRecord.lastInteracted).toLocaleDateString() : 'Never'}
             </span>
             <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
-              Strength: {currentRecord.connectionStrength}
+              Strength: {getStrengthLabel(currentRecord.interactionCount)}
             </span>
           </>
         ) : (
           <>
             <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
-              Strength: {currentRecord.connectionStrength}
+              Strength: {getStrengthLabel(currentRecord.interactionCount)}
             </span>
             <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
-              Connections: {currentRecord.connectionsInCompany}
+              Domains: {currentRecord.domains.join(', ')}
             </span>
           </>
         )}
@@ -204,11 +225,54 @@ export function NetworkRecord({
           </div>
           {/* Content for Component 1 Tabs (Placeholders) */}
           <div className="flex-1 p-2">
-            {activeMainTab === "Activity" && <div>Activity Content Placeholder...</div>}
+            {activeMainTab === "Activity" && (
+              <div className="space-y-2">
+                {isPerson && personActivityQuery?.data ? (
+                  <>
+                    <h3>Inbound Emails</h3>
+                    <ul>
+                      {personActivityQuery.data.inboundEmails.map(email => (
+                        <li key={email.id}>{email.subject}</li>
+                      ))}
+                    </ul>
+                    <h3>Outbound Emails</h3>
+                    <ul>
+                      {personActivityQuery.data.outboundEmails.map(email => (
+                        <li key={email.id}>{email.subject}</li>
+                      ))}
+                    </ul>
+                  </>
+                ) : !isPerson && companyActivityQuery?.data ? (
+                  <>
+                    <h3>Inbound Emails</h3>
+                    <ul>
+                      {companyActivityQuery.data.inboundEmails.map(email => (
+                        <li key={email.id}>{email.subject}</li>
+                      ))}
+                    </ul>
+                    <h3>Outbound Emails</h3>
+                    <ul>
+                      {companyActivityQuery.data.outboundEmails.map(email => (
+                        <li key={email.id}>{email.subject}</li>
+                      ))}
+                    </ul>
+                    <h3>People in Company</h3>
+                    <ul>
+                      {companyActivityQuery.data.people.map(person => (
+                        <li key={person.id}>{person.name} ({person.email})</li>
+                      ))}
+                    </ul>
+                  </>
+                ) : (
+                  <div>Loading activity...</div>
+                )}
+              </div>
+            )}
+
             {activeMainTab === "Email" && <div>Email Content Placeholder...</div>}
             {/* Conditional content for the third tab */}
-            {isPersonRecord && activeMainTab === "Company" && <div>Person&apos;s Company Info Placeholder...</div>}
-            {!isPersonRecord && activeMainTab === "Team" && <div>Company&apos;s Team Info Placeholder...</div>}
+            {isPerson && activeMainTab === "Company" && <div>Person&apos;s Company Info Placeholder...</div>}
+            {!isPerson && activeMainTab === "Team" && <div>Company&apos;s Team Info Placeholder...</div>}
             {activeMainTab === "Notes" && <div>Notes Content Placeholder...</div>}
             {activeMainTab === "Tasks" && <div>Tasks Content Placeholder...</div>}
             {activeMainTab === "Files" && <div>Files Content Placeholder...</div>}
@@ -236,44 +300,40 @@ export function NetworkRecord({
           <div className="flex-1 p-2 space-y-3">
             {activeSidebarTab === "Details" && (
               <>
-                {isPersonRecord ? (
+                {isPerson ? (
                   <>
-                    {currentRecord.companyName && (
+                    {currentRecord.companyDomain && (
                       <div>
-                        <p className="text-xs font-medium text-gray-500">Company</p>
-                        <p className="text-sm text-gray-900">{currentRecord.companyName}</p>
+                        <p className="text-xs font-medium text-gray-500">Company Domain</p>
+                        <p className="text-sm text-gray-900">{currentRecord.companyDomain}</p>
                       </div>
                     )}
-                     <div>
+                    <div>
                       <p className="text-xs font-medium text-gray-500">Email</p>
                       <p className="text-sm text-gray-900">{currentRecord.email ?? "N/A"}</p>
                     </div>
                     <div>
-                      <p className="text-xs font-medium text-gray-500">Last Email Interaction</p>
-                      <p className="text-sm text-gray-900">{currentRecord.lastEmailInteraction}</p>
+                      <p className="text-xs font-medium text-gray-500">Last Interacted</p>
+                      <p className="text-sm text-gray-900">{currentRecord.lastInteracted ? new Date(currentRecord.lastInteracted).toLocaleDateString() : 'Never'}</p>
                     </div>
                     <div>
-                      <p className="text-xs font-medium text-gray-500">Connection Strength</p>
-                      <p className="text-sm text-gray-900">{currentRecord.connectionStrength}</p>
+                      <p className="text-xs font-medium text-gray-500">Interaction Count</p>
+                      <p className="text-sm text-gray-900">{currentRecord.interactionCount}</p>
                     </div>
                   </>
                 ) : (
                   <>
                     <div>
-                      <p className="text-xs font-medium text-gray-500">Email</p>
-                      <p className="text-sm text-gray-900">{currentRecord.email ?? "N/A"}</p>
-                    </div>
-                    <div>
                       <p className="text-xs font-medium text-gray-500">Domains</p>
-                      <p className="text-sm text-gray-900">{currentRecord.domains}</p>
+                      <p className="text-sm text-gray-900">{currentRecord.domains.join(', ')}</p>
                     </div>
                     <div>
-                      <p className="text-xs font-medium text-gray-500">Connections in Company</p>
-                      <p className="text-sm text-gray-900">{currentRecord.connectionsInCompany}</p>
+                      <p className="text-xs font-medium text-gray-500">Last Interacted</p>
+                      <p className="text-sm text-gray-900">{currentRecord.lastInteracted ? new Date(currentRecord.lastInteracted).toLocaleDateString() : 'Never'}</p>
                     </div>
                     <div>
-                      <p className="text-xs font-medium text-gray-500">Connection Strength</p>
-                      <p className="text-sm text-gray-900">{currentRecord.connectionStrength}</p>
+                      <p className="text-xs font-medium text-gray-500">Interaction Count</p>
+                      <p className="text-sm text-gray-900">{currentRecord.interactionCount}</p>
                     </div>
                   </>
                 )}
@@ -285,4 +345,12 @@ export function NetworkRecord({
       </div>
     </div>
   );
+}
+
+// Helper for strength label
+function getStrengthLabel(interactionCount: number): string {
+  if (interactionCount > 50) return "Very Strong";
+  if (interactionCount > 20) return "Strong";
+  if (interactionCount > 5) return "Medium";
+  return "Weak";
 } 

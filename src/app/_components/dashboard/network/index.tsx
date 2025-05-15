@@ -11,6 +11,8 @@ import { Separator } from "~/app/_components/ui/separator";
 import { Navigation } from "../shared/navigation";
 import type { Section } from "../wrapper/dashboardWrapper";
 import { NetworkRecord } from "./NetworkRecord";
+import { api } from "~/trpc/react";
+import { useSession } from "next-auth/react";
 
 interface NetworkProps {
   type: Section;
@@ -37,52 +39,25 @@ interface CompanyData {
   connectionStrength: string;
 }
 
-// Fake data for People
-const fakePeopleData: PersonData[] = [
-  {
-    personName: "Alice Wonderland",
-    email: "alice.wonderland@example.com",
-    companyName: "Acme Corp",
-    lastEmailInteraction: "2 days ago",
-    connectionStrength: "Strong",
-  },
-  {
-    personName: "Bob The Builder",
-    email: "bob.builder@example.com",
-    companyName: "Wayne Enterprises",
-    lastEmailInteraction: "1 week ago",
-    connectionStrength: "Medium",
-  },
-  {
-    personName: "Charlie Chaplin",
-    lastEmailInteraction: "3 hours ago",
-    connectionStrength: "Very Strong",
-  },
-];
+type PersonRecord = {
+  id: string;
+  userId: string;
+  email: string;
+  name: string;
+  companyDomain: string | null;
+  lastInteracted: Date | null;
+  interactionCount: number;
+};
 
-// Fake data for Companies
-const fakeCompanyData: CompanyData[] = [
-  {
-    companyName: "Acme Corp",
-    domains: "acme.com, acme.org",
-    email: "contact@acme.com",
-    connectionsInCompany: 5,
-    connectionStrength: "Medium",
-  },
-  {
-    companyName: "Wayne Enterprises",
-    domains: "wayne.com, wayne.org",
-    connectionsInCompany: 12,
-    connectionStrength: "Strong",
-  },
-  {
-    companyName: "Stark Industries",
-    domains: "starkindustries.com",
-    email: "info@starkindustries.com",
-    connectionsInCompany: 8,
-    connectionStrength: "Very Strong",
-  },
-];
+type CompanyRecord = {
+  id: string;
+  userId: string;
+  name: string;
+  domains: string[];
+  lastInteracted: Date | null;
+  interactionCount: number;
+};
+
 
 // Define columns for People
 const peopleColumns: ColumnDef<PersonData>[] = [
@@ -122,11 +97,10 @@ const companiesColumns: ColumnDef<CompanyData>[] = [
 
 export function Network({ type, currentSection, setSection, onComposeClick, setComposeRecipient }: NetworkProps) {
   const [isCollapsed] = React.useState(false);
-  const [selectedRecord, setSelectedRecord] = React.useState<PersonData | CompanyData | null>(null);
+  const { data: session } = useSession();
 
   const handleSectionChange = (section: Section) => {
     setSection(section);
-    setSelectedRecord(null); // Reset view when section changes
   };
 
   const columns = React.useMemo(
@@ -134,19 +108,67 @@ export function Network({ type, currentSection, setSection, onComposeClick, setC
     [type]
   );
 
-  const data = React.useMemo(
-    () => (type === "PEOPLE" ? fakePeopleData : fakeCompanyData),
-    [type]
-  );
+  const peopleQuery = api.people.getAll.useQuery();
+  const companiesQuery = api.companies.getAll.useQuery();
+
+  // Use the original records for state and navigation
+  const people = React.useMemo(() => peopleQuery.data ?? [], [peopleQuery.data]);
+  const filteredPeople = React.useMemo(() => {
+    if (!session?.user?.email) return people;
+    return people.filter(p => p.email !== session.user.email);
+  }, [people, session]);
+  const companies = React.useMemo(() => companiesQuery.data ?? [], [companiesQuery.data]);
+  const filteredCompanies = React.useMemo(() => {
+    return companies.filter(c =>
+      c.domains.every(domain => !domain.endsWith("@gmail.com") && domain !== "gmail.com")
+    );
+  }, [companies]);
+
+  // The data array for navigation and selection
+  const data: (PersonRecord | CompanyRecord)[] = React.useMemo(() => {
+    if (type === "PEOPLE") return filteredPeople;
+    if (type === "COMPANIES") return filteredCompanies;
+    return [];
+  }, [type, filteredPeople, filteredCompanies]);
+
+  // The display data for rendering the table
+  const displayData = React.useMemo(() => {
+    if (type === "PEOPLE") {
+      return filteredPeople.map((p): PersonData => ({
+        personName:
+          p.name && p.name.trim().length > 0
+            ? p.name
+            : p.email?.split("@")[0] ?? "Unknown",
+        email: p.email,
+        companyName: p.companyDomain ?? "Unknown",
+        lastEmailInteraction: p.lastInteracted
+          ? new Date(p.lastInteracted).toLocaleDateString()
+          : "Never",
+        connectionStrength: getStrengthLabel(p.interactionCount),
+      }));
+    }
+    if (type === "COMPANIES") {
+      return filteredCompanies.map((c): CompanyData => ({
+        companyName: c.name,
+        domains: c.domains.join(", "),
+        email: undefined,
+        connectionsInCompany: 0, // You can extend your query to include this if needed
+        connectionStrength: getStrengthLabel(c.interactionCount),
+      }));
+    }
+    return [];
+  }, [type, filteredPeople, filteredCompanies]);
 
   const table = useReactTable<PersonData | CompanyData>({
-    data,
+    data: displayData,
     columns: columns as ColumnDef<PersonData | CompanyData>[],
     getCoreRowModel: getCoreRowModel(),
   });
 
-  const handleRowClick = (record: PersonData | CompanyData) => {
-    setSelectedRecord(record);
+  const [selectedRecord, setSelectedRecord] = React.useState<PersonRecord | CompanyRecord | null>(null);
+
+  const handleRowClick = (row: PersonData | CompanyData, rowIndex: number) => {
+    setSelectedRecord(data[rowIndex] ?? null);
   };
 
   const showTable = () => {
@@ -155,9 +177,7 @@ export function Network({ type, currentSection, setSection, onComposeClick, setC
 
   const currentIndex = React.useMemo(() => {
     if (!selectedRecord) return -1;
-    return data.findIndex(item => JSON.stringify(item) === JSON.stringify(selectedRecord));
-    // Note: JSON.stringify for comparison is simple but might not be robust for complex objects or if order of keys can change.
-    // A unique ID on each record would be better: data.findIndex(item => item.id === selectedRecord.id);
+    return data.findIndex(item => item.id === selectedRecord.id);
   }, [data, selectedRecord]);
 
   const handleNavigate = (direction: "next" | "previous") => {
@@ -169,13 +189,8 @@ export function Network({ type, currentSection, setSection, onComposeClick, setC
     } else {
       newIndex = Math.max(0, currentIndex - 1);
     }
-    
-    // Ensure newIndex is valid and different before updating
     if (newIndex >= 0 && newIndex < data.length && newIndex !== currentIndex) {
-      const newRecord = data[newIndex];
-      if (newRecord) { // Additional check for safety, though newIndex should be valid
-        setSelectedRecord(newRecord);
-      }
+      setSelectedRecord(data[newIndex] ?? null);
     }
   };
 
@@ -198,6 +213,10 @@ export function Network({ type, currentSection, setSection, onComposeClick, setC
     }
     onComposeClick();          // Open modal
   };
+
+  if (peopleQuery.isLoading || companiesQuery.isLoading) {
+    return <div className="p-4">Loading...</div>;
+  }
 
   return (
     <div className="flex h-full">
@@ -255,10 +274,10 @@ export function Network({ type, currentSection, setSection, onComposeClick, setC
                   </thead>
                   <tbody className="divide-y divide-gray-200 bg-white">
                     {table.getRowModel().rows.length > 0 ? (
-                      table.getRowModel().rows.map((row: Row<PersonData | CompanyData>) => (
+                      table.getRowModel().rows.map((row: Row<PersonData | CompanyData>, idx) => (
                         <tr
                           key={row.id}
-                          onClick={() => handleRowClick(row.original)}
+                          onClick={() => handleRowClick(row.original, idx)}
                           className="cursor-pointer hover:bg-gray-50"
                         >
                           {row.getVisibleCells().map((cell) => (
@@ -293,4 +312,11 @@ export function Network({ type, currentSection, setSection, onComposeClick, setC
       </div>
     </div>
   );
+}
+
+function getStrengthLabel(interactionCount: number): string {
+  if (interactionCount > 50) return "Very Strong";
+  if (interactionCount > 20) return "Strong";
+  if (interactionCount > 5) return "Medium";
+  return "Weak";
 }

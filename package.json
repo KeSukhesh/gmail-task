@@ -46,6 +46,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "email-addresses": "^5.0.0",
     "googleapis": "^105.0.0",
     "lucide-react": "^0.503.0",
     "mailparser": "^3.7.2",

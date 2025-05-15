@@ -1,6 +1,6 @@
 import { db } from "~/server/db";
 import { gmailClient } from "~/server/gmail/client";
-import { simpleParser } from "mailparser";
+import { simpleParser, type AddressObject } from "mailparser";
 import { uploadToS3 } from "~/server/s3";
 import type { gmail_v1 } from "googleapis";
 
@@ -64,8 +64,8 @@ export async function syncGmailEmails(userId: string) {
           return null;
         }
       })
-    ).then((records) => records.filter((r): r is NonNullable<typeof r> => r !== null));
-  
+    ).then(records => records.filter(r => r !== null));
+
     let htmlUrl: string | null = null;
     if (resolvedHtml) {
       try {
@@ -74,7 +74,70 @@ export async function syncGmailEmails(userId: string) {
         console.error(`[SYNC] Failed to upload HTML for ${messageId}:`, error);
       }
     }
-  
+
+    const now = new Date();
+
+    const participants = [
+      ...getParticipants(parsed.from),
+      ...getParticipants(parsed.to),
+      ...getParticipants(parsed.cc),
+    ];
+
+    for (const participant of participants) {
+      const participantEmail = participant.address?.toLowerCase();
+      const participantName = participant.name ?? participantEmail;
+
+      if (!participantEmail) continue;
+
+      const domain = extractDomain(participantEmail);
+
+      // 🟢 Upsert Person
+      await db.person.upsert({
+        where: { userId_email: { userId, email: participantEmail } },
+        update: {
+          name: participantName,
+          lastInteracted: now,
+          interactionCount: { increment: 1 },
+        },
+        create: {
+          email: participantEmail,
+          name: participantName,
+          userId,
+          companyDomain: domain,
+          lastInteracted: now,
+          interactionCount: 1,
+        },
+      });
+
+      // 🟢 Upsert Company if domain exists
+      if (domain) {
+        const existingCompany = await db.company.findFirst({
+          where: { userId, domains: { has: domain } },
+        });
+
+        if (existingCompany) {
+          await db.company.update({
+            where: { id: existingCompany.id },
+            data: {
+              lastInteracted: now,
+              interactionCount: { increment: 1 },
+            },
+          });
+        } else {
+          await db.company.create({
+            data: {
+              userId,
+              name: domain, // You can optionally resolve real names if you want
+              domains: [domain],
+              lastInteracted: now,
+              interactionCount: 1,
+            },
+          });
+        }
+      }
+    }
+
+    // 🟢 Create Email Record
     await db.email.create({
       data: {
         id: messageId,
@@ -96,7 +159,7 @@ export async function syncGmailEmails(userId: string) {
         },
       },
     });
-  
+
     console.log(`[SYNC] Synced email ${messageId}`);
   };
 
@@ -188,4 +251,17 @@ export async function syncGmailEmails(userId: string) {
   }
 
   console.log(`[SYNC] Finished Gmail sync for user: ${userId}`);
+}
+
+// Helper to extract domain from email address
+function extractDomain(email: string | undefined): string | null {
+  if (!email) return null;
+  const match = /@([\w.-]+)/.exec(email);
+  return match?.[1]?.toLowerCase() ?? null;
+}
+
+function getParticipants(addressObject?: AddressObject | AddressObject[] | null) {
+  if (!addressObject) return [];
+  const objects = Array.isArray(addressObject) ? addressObject : [addressObject];
+  return objects.flatMap(obj => obj.value);
 }
