@@ -52,6 +52,8 @@ model User {
   sessions       Session[]
   emails         Email[]
   syncCheckpoint EmailSyncCheckpoint?
+  people         Person[]
+  companies      Company[]
 }
 
 model VerificationToken {
@@ -110,4 +112,29 @@ model Attachment {
   email       Email    @relation(fields: [emailId], references: [id], onDelete: Cascade)
 
   @@index([emailId])
+}
+
+model Person {
+  id              String   @id @default(cuid())
+  userId          String
+  name            String
+  email           String   @unique
+  companyDomain   String?
+  lastInteracted  DateTime?
+  interactionCount Int     @default(0)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Company {
+  id              String   @id @default(cuid())
+  userId          String
+  name            String
+  domains         String[] // multiple domains like "acme.com"
+  lastInteracted  DateTime?
+  interactionCount Int     @default(0)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
