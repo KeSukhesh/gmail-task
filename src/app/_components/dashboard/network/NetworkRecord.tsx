@@ -6,32 +6,13 @@ import { Send } from "lucide-react";
 import { api } from "~/trpc/react";
 import { useSession } from "next-auth/react";
 import { ActivityTab } from "./ActivityTab";
-import { getStrengthColor } from "./index";
-
-// Assuming these types are co-located or imported from a shared types file
-// For this example, I'll redefine them. In a real app, import them.
-type PersonRecord = {
-  id: string;
-  userId: string;
-  email: string;
-  name: string;
-  companyDomain: string | null;
-  lastInteracted: Date | null;
-  interactionCount: number;
-};
-
-type CompanyRecord = {
-  id: string;
-  userId: string;
-  name: string;
-  domains: string[];
-  lastInteracted: Date | null;
-  interactionCount: number;
-};
-
-// Define types for the new tabs
-type MainRecordTab = "Activity" | "Email" | "Company" | "Team" | "Notes" | "Tasks" | "Files";
-type SidebarRecordTab = "Details" | "Comments";
+import { getStrengthColor, getStrengthLabel } from "./helpers";
+import type {
+  PersonRecord,
+  CompanyRecord,
+  MainRecordTab,
+  SidebarRecordTab,
+} from "./types";
 
 interface NetworkRecordProps {
   onBack: () => void;
@@ -61,17 +42,17 @@ export function NetworkRecord({
     return !!rec && 'email' in rec && typeof rec.email === 'string';
   };
 
-  const mainTabsForPerson: MainRecordTab[] = React.useMemo(() => 
-    ["Activity", "Email", "Company", "Notes", "Tasks", "Files"], 
+  const mainTabsForPerson: MainRecordTab[] = React.useMemo(() =>
+    ["Activity", "Email", "Company", "Notes", "Tasks", "Files"],
   []);
-  const mainTabsForCompany: MainRecordTab[] = React.useMemo(() => 
-    ["Activity", "Email", "Team", "Notes", "Tasks", "Files"], 
+  const mainTabsForCompany: MainRecordTab[] = React.useMemo(() =>
+    ["Activity", "Email", "Team", "Notes", "Tasks", "Files"],
   []);
 
   const currentMainTabs = isPersonRecord(record) ? mainTabsForPerson : mainTabsForCompany;
-  
+
   React.useEffect(() => {
-    if (record) { 
+    if (record) {
       const tabsForCurrentRecord = isPersonRecord(record) ? mainTabsForPerson : mainTabsForCompany;
       if (!tabsForCurrentRecord.includes(activeMainTab)) {
         setActiveMainTab(tabsForCurrentRecord[0]!);
@@ -216,8 +197,8 @@ export function NetworkRecord({
               <button
                 key={tab}
                 onClick={() => setActiveMainTab(tab)}
-                className={`whitespace-nowrap px-3 py-1.5 text-sm font-medium 
-                  ${activeMainTab === tab 
+                className={`whitespace-nowrap px-3 py-1.5 text-sm font-medium
+                  ${activeMainTab === tab
                     ? "border-b-2 border-blue-500 text-blue-600"
                     : "text-gray-500 hover:text-gray-700 hover:border-gray-300"}`}
               >
@@ -290,8 +271,8 @@ export function NetworkRecord({
               <button
                 key={tab}
                 onClick={() => setActiveSidebarTab(tab)}
-                className={`whitespace-nowrap px-3 py-1.5 text-sm font-medium 
-                  ${activeSidebarTab === tab 
+                className={`whitespace-nowrap px-3 py-1.5 text-sm font-medium
+                  ${activeSidebarTab === tab
                     ? "border-b-2 border-blue-500 text-blue-600"
                     : "text-gray-500 hover:text-gray-700 hover:border-gray-300"}`}
               >
@@ -349,11 +330,3 @@ export function NetworkRecord({
     </div>
   );
 }
-
-// Helper for strength label
-function getStrengthLabel(interactionCount: number): string {
-  if (interactionCount > 50) return "Very Strong";
-  if (interactionCount > 20) return "Strong";
-  if (interactionCount > 5) return "Medium";
-  return "Weak";
-} 
