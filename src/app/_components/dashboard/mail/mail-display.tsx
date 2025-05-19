@@ -77,7 +77,7 @@ export function MailDisplay({ mail, isLoading, isMailListCollapsed, onToggleMail
   console.log("[DEBUG] Mail:", mail);
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center p-2 h-[55px]">
+      <div className="flex items-center p-2 h-[56px] border-b">
         {mail && (
           <>
             <Tooltip>
@@ -221,7 +221,7 @@ export function MailDisplay({ mail, isLoading, isMailListCollapsed, onToggleMail
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-      <Separator />
+      {/* <Separator /> */}
       {mail ? (
         <div className="flex flex-1 flex-col overflow-y-auto">
           <div className="flex items-start justify-between p-5">

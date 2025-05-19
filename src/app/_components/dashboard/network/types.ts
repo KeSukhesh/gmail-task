@@ -21,10 +21,11 @@ export type PersonRecord = {
   id: string;
   userId: string;
   email: string;
-  name: string;
+  name: string | null;
   companyDomain: string | null;
   lastInteracted: Date | null;
   interactionCount: number;
+  companyId: string | null;
 };
 
 export type CompanyRecord = {

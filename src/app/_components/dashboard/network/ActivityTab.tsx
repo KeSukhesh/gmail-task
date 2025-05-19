@@ -30,23 +30,23 @@ export function ActivityTab({ inboundEmails, outboundEmails }: ActivityTabProps)
         {timelineEmails.length > 0 ? (
           timelineEmails.map(email => (
             <li key={email.id} className="flex">
-              {email.direction === "inbound" ? (
-                <div className="flex w-full justify-start">
-                  <div className="p-2 bg-blue-50 max-w-sm text-left shadow-sm rounded-l-2xl rounded-tr-2xl mr-2">
-                    <span className="px-2 py-0.5 rounded text-xs font-semibold bg-blue-200 text-blue-800">Inbound</span>
-                    <div className="font-medium mt-1">{email.subject}</div>
+              <div className="flex w-full">
+                <div className={`p-2 w-full shadow-sm rounded-lg flex justify-between items-start ${
+                  email.direction === "inbound" ? "bg-blue-50" : "bg-green-50"
+                }`}>
+                  <div className="flex-1">
+                    <div className="font-medium">{email.subject}</div>
                     <div className="text-xs text-gray-500">{email.date ? new Date(email.date).toLocaleString() : "No date"}</div>
                   </div>
+                  <span className={`px-2 py-0.5 rounded text-xs font-semibold ml-2 ${
+                    email.direction === "inbound" 
+                      ? "bg-blue-200 text-blue-800" 
+                      : "bg-green-200 text-green-800"
+                  }`}>
+                    {email.direction === "inbound" ? "Inbound" : "Outbound"}
+                  </span>
                 </div>
-              ) : (
-                <div className="flex w-full justify-end">
-                  <div className="p-2 bg-green-50 max-w-sm text-right shadow-sm rounded-r-2xl rounded-tl-2xl ml-2">
-                    <span className="px-2 py-0.5 rounded text-xs font-semibold bg-green-200 text-green-800">Outbound</span>
-                    <div className="font-medium mt-1">{email.subject}</div>
-                    <div className="text-xs text-gray-500">{email.date ? new Date(email.date).toLocaleString() : "No date"}</div>
-                  </div>
-                </div>
-              )}
+              </div>
             </li>
           ))
         ) : (

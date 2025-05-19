@@ -15,7 +15,6 @@ import { MailList } from "./mail-list";
 import type { Section } from "../wrapper/dashboardWrapper";
 import { Button } from "~/app/_components/ui/button";
 import { useMail } from "~/lib/hooks/useMail";
-import { Separator } from "~/app/_components/ui/separator";
 import { Switch } from "~/app/_components/ui/switch";
 import { Navigation } from "../shared/navigation";
 
@@ -84,7 +83,7 @@ export function Mail({
             >
               {!(selectedMessage && isMailListCollapsed) && (
                 <>
-                  <div className="flex h-14 items-center justify-between px-4">
+                  <div className="flex h-14 items-center justify-between px-4 border-b">
                     <h1 className="text-xl font-bold">
                       {type === "INBOX"
                         ? "Inbox"
@@ -105,7 +104,6 @@ export function Mail({
                       <span>Sync Data</span>
                     </Button>
                   </div>
-                  <Separator />
                   <div className="px-4 py-2 dark:bg-gray-800/50">
                     <form className="w-full">
                       <div className="relative">
@@ -119,7 +117,7 @@ export function Mail({
                       </div>
                     </form>
                   </div>
-                  <div className="flex items-center justify-between px-4 py-2">
+                  <div className="flex items-center justify-between px-4 py-2 border-b">
                     <Tabs value={tabValue} onValueChange={setTabValue}>
                       <TabsList>
                         <TabsTrigger
@@ -146,7 +144,6 @@ export function Mail({
                       />
                     </div>
                   </div>
-                  <Separator />
                   <div className="flex-1 overflow-y-auto min-h-0">
                     <MailList
                       key={`${type}-list`}

@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { flexRender } from "@tanstack/react-table";
-import { Separator } from "~/app/_components/ui/separator";
 import { Navigation } from "../shared/navigation";
 import type { Section } from "../wrapper/dashboardWrapper";
 import { NetworkRecord } from "./NetworkRecord";
@@ -79,9 +78,9 @@ export function Network({ type, currentSection, setSection, onComposeClick, setC
       </div>
       <div className="flex-1">
         {selectedRecord ? (
-          <NetworkRecord 
-            record={selectedRecord} 
-            onBack={showTable} 
+          <NetworkRecord
+            record={selectedRecord}
+            onBack={showTable}
             currentIndex={currentIndex}
             totalCount={data.length}
             recordTypeLabel={recordTypeLabel}
@@ -90,14 +89,13 @@ export function Network({ type, currentSection, setSection, onComposeClick, setC
           />
         ) : (
           <>
-            <div className="flex h-14 items-center justify-between px-4">
+            <div className="flex h-14 items-center justify-between px-4 border-b">
               <div className="flex items-center gap-4">
                 <h1 className="text-xl font-bold">
                   {type === "PEOPLE" ? "People" : "Companies"}
                 </h1>
               </div>
             </div>
-            <Separator />
             <div className="flex-1 p-4">
               <div className="overflow-x-auto">
                 {isLoading ? (

@@ -69,22 +69,39 @@ const companiesColumns: ColumnDef<CompanyData>[] = [
   },
 ];
 
+// Type guard to check if a record is a PersonRecord
+const isPersonRecord = (record: PersonRecord | CompanyRecord): record is PersonRecord => {
+  return 'email' in record && typeof record.email === 'string';
+};
+
+// Type guard to check if a record is a CompanyRecord
+const isCompanyRecord = (record: PersonRecord | CompanyRecord): record is CompanyRecord => {
+  return 'domains' in record && Array.isArray(record.domains);
+};
+
 export function useNetworkTable(type: Section) {
   const { data: session } = useSession();
-  const peopleQuery = api.people.getAll.useQuery();
-  const companiesQuery = api.companies.getAll.useQuery();
+  const { data: people, isLoading: isLoadingPeople } = api.network.getAll.useQuery(
+    { type: "PEOPLE" },
+    { enabled: type === "PEOPLE" }
+  );
+  const { data: companies, isLoading: isLoadingCompanies } = api.network.getAll.useQuery(
+    { type: "COMPANIES" },
+    { enabled: type === "COMPANIES" }
+  );
 
   // Use the original records for state and navigation
-  const people = React.useMemo(() => peopleQuery.data ?? [], [peopleQuery.data]);
   const filteredPeople = React.useMemo(() => {
-    if (!session?.user?.email) return people;
-    return people.filter(p => p.email !== session.user.email);
+    if (!session?.user?.email || !people) return [];
+    return people.filter((p): p is PersonRecord =>
+      isPersonRecord(p) && p.email !== session.user.email
+    );
   }, [people, session]);
 
-  const companies = React.useMemo(() => companiesQuery.data ?? [], [companiesQuery.data]);
   const filteredCompanies = React.useMemo(() => {
-    return companies.filter(c =>
-      c.domains.every(domain => !domain.endsWith("@gmail.com") && domain !== "gmail.com")
+    if (!companies) return [];
+    return companies.filter((c): c is CompanyRecord =>
+      isCompanyRecord(c) && c.domains.every(domain => !domain.endsWith("@gmail.com") && domain !== "gmail.com")
     );
   }, [companies]);
 
@@ -98,27 +115,40 @@ export function useNetworkTable(type: Section) {
   // The display data for rendering the table
   const displayData = React.useMemo(() => {
     if (type === "PEOPLE") {
-      return filteredPeople.map((p): PersonData => ({
-        personName:
-          p.name && p.name.trim().length > 0
-            ? p.name
-            : p.email?.split("@")[0] ?? "Unknown",
-        email: p.email,
-        companyName: p.companyDomain ?? "Unknown",
-        lastEmailInteraction: p.lastInteracted
-          ? new Date(p.lastInteracted).toLocaleDateString()
-          : "Never",
-        connectionStrength: getStrengthLabel(p.interactionCount),
-      }));
+      return filteredPeople.map((p): PersonData => {
+        if (!isPersonRecord(p)) throw new Error("Expected PersonRecord");
+        const personName = p.name?.trim() ?? p.email?.split("@")[0] ?? "Unknown";
+        console.log("[Table Name Calculation]", {
+          originalName: p.name,
+          email: p.email,
+          calculatedName: personName,
+          conditions: {
+            hasName: !!p.name?.trim(),
+            hasEmail: !!p.email
+          }
+        });
+        return {
+          personName,
+          email: p.email,
+          companyName: p.companyDomain ?? "Unknown",
+          lastEmailInteraction: p.lastInteracted
+            ? new Date(p.lastInteracted).toLocaleDateString()
+            : "Never",
+          connectionStrength: getStrengthLabel(p.interactionCount),
+        };
+      });
     }
     if (type === "COMPANIES") {
-      return filteredCompanies.map((c): CompanyData => ({
-        companyName: c.name,
-        domains: c.domains.join(", "),
-        email: undefined,
-        connectionsInCompany: 0, // TODO: Add this to the query
-        connectionStrength: getStrengthLabel(c.interactionCount),
-      }));
+      return filteredCompanies.map((c): CompanyData => {
+        if (!isCompanyRecord(c)) throw new Error("Expected CompanyRecord");
+        return {
+          companyName: c.name ?? "Unknown",
+          domains: c.domains.join(", "),
+          email: undefined,
+          connectionsInCompany: 0, // might extend to include this
+          connectionStrength: getStrengthLabel(c.interactionCount),
+        };
+      });
     }
     return [];
   }, [type, filteredPeople, filteredCompanies]);
@@ -137,6 +167,6 @@ export function useNetworkTable(type: Section) {
   return {
     table,
     data,
-    isLoading: peopleQuery.isLoading || companiesQuery.isLoading,
+    isLoading: isLoadingPeople || isLoadingCompanies,
   };
 }

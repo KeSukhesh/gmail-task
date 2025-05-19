@@ -145,7 +145,7 @@ export function NetworkRecord({
         {isPerson && currentRecord.email ? (
           <Button
             variant="outline"
-            size="sm" 
+            size="sm"
             onClick={() => {
               if (currentRecord.email) {
                 onComposeEmail(currentRecord.email);
@@ -253,13 +253,12 @@ export function NetworkRecord({
               </div>
             )}
 
-            {activeMainTab === "Email" && <div>Email Content Placeholder...</div>}
-            {/* Conditional content for the third tab */}
-            {isPerson && activeMainTab === "Company" && <div>Person&apos;s Company Info Placeholder...</div>}
-            {!isPerson && activeMainTab === "Team" && <div>Company&apos;s Team Info Placeholder...</div>}
-            {activeMainTab === "Notes" && <div>Notes Content Placeholder...</div>}
-            {activeMainTab === "Tasks" && <div>Tasks Content Placeholder...</div>}
-            {activeMainTab === "Files" && <div>Files Content Placeholder...</div>}
+            {activeMainTab === "Email" && <div>Email Content Placeholder (Not Part of MVP Spec)...</div>}
+            {isPerson && activeMainTab === "Company" && <div>Person&apos;s Company Info Placeholder (Not Part of MVP Spec)...</div>}
+            {!isPerson && activeMainTab === "Team" && <div>Company&apos;s Team Info Placeholder (Not Part of MVP Spec)...</div>}
+            {activeMainTab === "Notes" && <div>Notes Content Placeholder (Not Part of MVP Spec)...</div>}
+            {activeMainTab === "Tasks" && <div>Tasks Content Placeholder (Not Part of MVP Spec)...</div>}
+            {activeMainTab === "Files" && <div>Files Content Placeholder (Not Part of MVP Spec)...</div>}
           </div>
         </div>
 
@@ -323,7 +322,7 @@ export function NetworkRecord({
                 )}
               </>
             )}
-            {activeSidebarTab === "Comments" && <div>Comments Content Placeholder...</div>}
+            {activeSidebarTab === "Comments" && <div>Comments Content Placeholder... (Not Part of MVP Spec)</div>}
           </div>
         </div>
       </div>
